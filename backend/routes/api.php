@@ -20,9 +20,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
 
-    // ─ Fase 2: Siswa & Kelas (akan ditambah) ─
-    // Route::apiResource('siswa', SiswaController::class);
-    // Route::apiResource('kelas', KelasController::class);
+    // ─ Fase 2: Siswa & Kelas ─
+    Route::apiResource('kelas', \App\Http\Controllers\Api\KelasController::class);
+    Route::apiResource('siswa', \App\Http\Controllers\Api\StudentController::class);
+    Route::post('siswa/{student}/reset-password', [\App\Http\Controllers\Api\StudentController::class, 'resetPassword']);
+    Route::post('siswa-import', [\App\Http\Controllers\Api\StudentController::class, 'import']);
+    Route::get('siswa-export-kartu', [\App\Http\Controllers\Api\StudentController::class, 'exportKartu']);
 
     // ─ Fase 3: Bank Soal (akan ditambah) ─
     // Route::apiResource('mapel', MapelController::class);
