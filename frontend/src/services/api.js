@@ -6,7 +6,6 @@ const api = axios.create({
     'Content-Type': 'application/json',
     'Accept': 'application/json',
   },
-  withCredentials: true,
 })
 
 // Inject token ke setiap request
