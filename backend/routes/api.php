@@ -33,8 +33,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('soal/import-excel', [\App\Http\Controllers\Api\SoalController::class, 'importExcel']);
     Route::post('soal/upload-image', [\App\Http\Controllers\Api\SoalController::class, 'uploadImage']);
 
-    // ─ Fase 4: Sesi Ujian (akan ditambah) ─
-    // Route::apiResource('sesi', SesiUjianController::class);
+    // ─ Fase 4: Sesi Ujian ─
+    Route::apiResource('sesi', \App\Http\Controllers\Api\SesiUjianController::class);
+    Route::post('sesi/{sesi}/refresh-token', [\App\Http\Controllers\Api\SesiUjianController::class, 'refreshToken']);
+    Route::get('sesi/{sesi}/monitoring', [\App\Http\Controllers\Api\SesiUjianController::class, 'monitoring']);
+    Route::post('peserta/{peserta}/force-finish', [\App\Http\Controllers\Api\SesiUjianController::class, 'forceFinish']);
+    Route::post('peserta/{peserta}/reset', [\App\Http\Controllers\Api\SesiUjianController::class, 'resetPeserta']);
 
     // ─ Fase 7: Laporan (akan ditambah) ─
     // Route::get('laporan/{sesi}', [LaporanController::class, 'show']);

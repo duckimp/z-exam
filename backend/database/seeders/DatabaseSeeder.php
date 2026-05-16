@@ -12,6 +12,7 @@ class DatabaseSeeder extends Seeder
             RoleAndUserSeeder::class,
             KelasAndStudentSeeder::class,
             BankSoalSeeder::class,
+            SesiUjianSeeder::class,
         ]);
     }
 }
