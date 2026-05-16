@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
   ChevronLeft, ChevronRight, Clock, User, 
-  CheckCircle2, AlertTriangle, Menu, X, Save
+  CheckCircle2, AlertTriangle, Menu, X, Save, ShieldCheck
 } from 'lucide-react'
 import useExamStore from '../store/examStore'
 import api from '../services/api'
@@ -17,6 +17,64 @@ export default function ExamPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [saving, setSaving] = useState(false)
   const [finishing, setFinishing] = useState(false)
+  const [violations, setViolations] = useState(0)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
+  // ── Keamanan: Fullscreen & Disable Shortcuts ──
+  const requestFullscreen = () => {
+    const el = document.documentElement
+    if (el.requestFullscreen) el.requestFullscreen()
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen()
+    else if (el.msRequestFullscreen) el.msRequestFullscreen()
+    setIsFullscreen(true)
+  }
+
+  useEffect(() => {
+    const handleFsChange = () => {
+      if (!document.fullscreenElement) {
+        setIsFullscreen(false)
+        setViolations(v => v + 1)
+      }
+    }
+    document.addEventListener('fullscreenchange', handleFsChange)
+    return () => document.removeEventListener('fullscreenchange', handleFsChange)
+  }, [])
+  useEffect(() => {
+    const handleContext = (e) => e.preventDefault() // Disable Right Click
+    const handleKey = (e) => {
+      // Disable Ctrl+C, Ctrl+V, Ctrl+U, F12, PrintScreen
+      if (
+        (e.ctrlKey && ['c', 'v', 'u', 'p', 's'].includes(e.key.toLowerCase())) ||
+        ['F12', 'PrintScreen'].includes(e.key)
+      ) {
+        e.preventDefault()
+        alert('Fitur ini dinonaktifkan demi keamanan ujian.')
+      }
+    }
+
+    const handleBlur = () => {
+      setViolations(v => {
+        const newVal = v + 1
+        if (newVal >= 3) {
+          alert('Peringatan: Anda terdeteksi meninggalkan halaman ujian lebih dari 3 kali. Ujian akan dihentikan.')
+          submitFinish()
+        } else {
+          alert(`Peringatan (${newVal}/3): Jangan meninggalkan halaman ujian!`)
+        }
+        return newVal
+      })
+    }
+
+    document.addEventListener('contextmenu', handleContext)
+    document.addEventListener('keydown', handleKey)
+    window.addEventListener('blur', handleBlur)
+
+    return () => {
+      document.removeEventListener('contextmenu', handleContext)
+      document.removeEventListener('keydown', handleKey)
+      window.removeEventListener('blur', handleBlur)
+    }
+  }, [])
 
   // Redirect if no session
   useEffect(() => {
@@ -86,6 +144,24 @@ export default function ExamPage() {
 
   return (
     <div className="exam-shell bg-surface-1 min-h-screen flex flex-col overflow-hidden">
+      {!isFullscreen && (
+        <div className="fixed inset-0 bg-black/90 z-[999] flex items-center justify-center p-6 text-center text-white backdrop-blur-md">
+           <div className="max-w-md animate-fade-in">
+              <div className="w-20 h-20 rounded-full bg-accent/20 text-accent flex items-center justify-center mx-auto mb-6 border border-accent/30">
+                 <ShieldCheck size={40} />
+              </div>
+              <h2 className="text-2xl font-black mb-4 uppercase tracking-tight">Mode Ujian Aman</h2>
+              <p className="text-sm opacity-70 mb-8">
+                Halaman ini harus berjalan dalam mode Layar Penuh (Fullscreen). 
+                Ujian akan otomatis terhenti jika Anda mencoba keluar dari mode ini.
+              </p>
+              <button className="btn btn-primary btn-lg w-full justify-center py-4 text-lg" onClick={requestFullscreen}>
+                 AKTIFKAN LAYAR PENUH & MULAI
+              </button>
+           </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="exam-header flex items-center justify-between px-6 py-3 border-bottom bg-white z-20">
         <div className="flex items-center gap-4">
@@ -94,6 +170,12 @@ export default function ExamPage() {
             <div className="font-bold text-sm uppercase tracking-tight">{exam.sesi?.mapel?.nama_mapel}</div>
             <div className="text-xs text-muted">{exam.sesi?.nama_sesi}</div>
           </div>
+          {violations > 0 && (
+            <div className="flex items-center gap-1 text-danger animate-bounce ml-4">
+               <AlertTriangle size={14} />
+               <span className="text-xs font-bold uppercase">Pelanggaran: {violations}</span>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-6">

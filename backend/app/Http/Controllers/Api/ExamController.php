@@ -138,8 +138,14 @@ class ExamController extends Controller
         ]);
 
         $ujian = UjianPeserta::findOrFail($request->ujian_peserta_id);
+        
+        // Security: Cek status & IP
         if ($ujian->status !== 'START') {
-            return response()->json(['message' => 'Sesi ujian tidak aktif.'], 403);
+            return response()->json(['message' => 'Sesi ujian tidak aktif atau sudah selesai.'], 403);
+        }
+
+        if ($ujian->ip_address !== $request->ip()) {
+            return response()->json(['message' => 'Deteksi kecurangan: Perangkat akses berbeda.'], 403);
         }
 
         $soal = Soal::findOrFail($request->soal_id);
@@ -173,6 +179,14 @@ class ExamController extends Controller
         ]);
 
         $ujian = UjianPeserta::findOrFail($request->ujian_peserta_id);
+
+        if ($ujian->status !== 'START') {
+            return response()->json(['message' => 'Ujian sudah diselesaikan sebelumnya.'], 403);
+        }
+
+        if ($ujian->ip_address !== $request->ip()) {
+             return response()->json(['message' => 'Deteksi kecurangan: Perangkat akses berbeda.'], 403);
+        }
         
         // Hitung skor total
         $totalScore = JawabanPeserta::where('ujian_peserta_id', $ujian->id)
