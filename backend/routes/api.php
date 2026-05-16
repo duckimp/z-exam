@@ -46,6 +46,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('exam/save', [\App\Http\Controllers\Api\ExamController::class, 'save']);
     Route::post('exam/finish', [\App\Http\Controllers\Api\ExamController::class, 'finish']);
 
-    // ─ Fase 7: Laporan (akan ditambah) ─
-    // Route::get('laporan/{sesi}', [LaporanController::class, 'show']);
+    // ─ Fase 7: Laporan & Analitik ─
+    Route::get('laporan/sesi/{sesi}/excel', [\App\Http\Controllers\Api\ReportController::class, 'exportExcel']);
+    Route::get('laporan/sesi/{sesi}/stats', [\App\Http\Controllers\Api\ReportController::class, 'getStats']);
+    Route::get('laporan/peserta/{peserta}/pdf', [\App\Http\Controllers\Api\ReportController::class, 'exportPdfJawaban']);
 });

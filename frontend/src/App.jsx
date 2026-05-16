@@ -14,6 +14,8 @@ import SesiUjianPage from './pages/SesiUjianPage'
 import MonitoringPage from './pages/MonitoringPage'
 import StudentLoginPage from './pages/StudentLoginPage'
 import ExamPage from './pages/ExamPage'
+import LaporanPage from './pages/LaporanPage'
+import AnalitikPage from './pages/AnalitikPage'
 
 // ── Placeholder untuk fase berikutnya ─────────────────────────────────────
 function ComingSoon({ name }) {
@@ -61,7 +63,8 @@ export default function App() {
       <Route path="/soal"      element={<ProtectedPage><BankSoalPage /></ProtectedPage>} />
       <Route path="/ujian"     element={<ProtectedPage><SesiUjianPage /></ProtectedPage>} />
       <Route path="/monitoring/:id" element={<ProtectedPage><MonitoringPage /></ProtectedPage>} />
-      <Route path="/laporan"   element={<ProtectedPage><ComingSoon name="Laporan & Analitik" /></ProtectedPage>} />
+      <Route path="/laporan"   element={<ProtectedPage><LaporanPage /></ProtectedPage>} />
+      <Route path="/analitik/:id" element={<ProtectedPage><AnalitikPage /></ProtectedPage>} />
       <Route path="/backup"    element={<ProtectedPage><ComingSoon name="Backup & Restore" /></ProtectedPage>} />
       <Route path="/pengaturan" element={<ProtectedPage><ComingSoon name="Pengaturan Sistem" /></ProtectedPage>} />
 
