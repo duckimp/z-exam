@@ -1,40 +1,64 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+import './App.css'
 
-// Placeholder pages — akan diisi di Fase 1+
+// Layout & Guard
+import AdminLayout from './layouts/AdminLayout'
+import AuthGuard from './components/AuthGuard'
+
+// Pages
+import LoginPage from './pages/LoginPage'
+import DashboardPage from './pages/DashboardPage'
+
+// ── Placeholder untuk fase berikutnya ─────────────────────────────────────
 function ComingSoon({ name }) {
   return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      height: '100vh',
-      flexDirection: 'column',
-      gap: '12px',
-      color: 'var(--color-text-muted)',
-    }}>
-      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-text-faint)' }}>
-        z-exam / {name}
-      </div>
-      <h2 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--color-text)' }}>
+    <div className="animate-fade-in" style={{ padding: '60px 0', textAlign: 'center' }}>
+      <p style={{
+        fontFamily: 'var(--font-mono)',
+        fontSize: 'var(--text-xs)',
+        color: 'var(--color-text-faint)',
+        marginBottom: 8,
+      }}>
+        z-exam / {name.toLowerCase()}
+      </p>
+      <h2 style={{ fontSize: 'var(--text-xl)', fontWeight: 600, color: 'var(--color-text)', marginBottom: 4 }}>
         {name}
       </h2>
-      <p style={{ fontSize: '13px' }}>Akan diimplementasikan di Fase berikutnya.</p>
+      <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>
+        Modul ini akan diimplementasikan pada fase berikutnya.
+      </p>
     </div>
   )
 }
 
+// ── Protected layout wrapper ─────────────────────────────────────────────────
+function ProtectedPage({ children }) {
+  return (
+    <AuthGuard>
+      <AdminLayout>{children}</AdminLayout>
+    </AuthGuard>
+  )
+}
+
+// ── App Router ───────────────────────────────────────────────────────────────
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="/login" element={<ComingSoon name="Login" />} />
-      <Route path="/dashboard" element={<ComingSoon name="Dashboard" />} />
-      <Route path="/siswa" element={<ComingSoon name="Manajemen Siswa" />} />
-      <Route path="/soal" element={<ComingSoon name="Bank Soal" />} />
-      <Route path="/ujian" element={<ComingSoon name="Manajemen Ujian" />} />
-      <Route path="/laporan" element={<ComingSoon name="Laporan" />} />
-      <Route path="/pengaturan" element={<ComingSoon name="Pengaturan" />} />
-      <Route path="*" element={<ComingSoon name="404 — Halaman tidak ditemukan" />} />
+      {/* Public */}
+      <Route path="/login" element={<LoginPage />} />
+
+      {/* Protected — Admin Panel */}
+      <Route path="/dashboard" element={<ProtectedPage><DashboardPage /></ProtectedPage>} />
+      <Route path="/siswa"     element={<ProtectedPage><ComingSoon name="Manajemen Peserta" /></ProtectedPage>} />
+      <Route path="/soal"      element={<ProtectedPage><ComingSoon name="Bank Soal" /></ProtectedPage>} />
+      <Route path="/ujian"     element={<ProtectedPage><ComingSoon name="Sesi Ujian" /></ProtectedPage>} />
+      <Route path="/laporan"   element={<ProtectedPage><ComingSoon name="Laporan & Analitik" /></ProtectedPage>} />
+      <Route path="/backup"    element={<ProtectedPage><ComingSoon name="Backup & Restore" /></ProtectedPage>} />
+      <Route path="/pengaturan" element={<ProtectedPage><ComingSoon name="Pengaturan Sistem" /></ProtectedPage>} />
+
+      {/* Redirect */}
+      <Route path="/"  element={<Navigate to="/dashboard" replace />} />
+      <Route path="*"  element={<Navigate to="/dashboard" replace />} />
     </Routes>
   )
 }
