@@ -12,6 +12,8 @@ import SiswaPage from './pages/SiswaPage'
 import BankSoalPage from './pages/BankSoalPage'
 import SesiUjianPage from './pages/SesiUjianPage'
 import MonitoringPage from './pages/MonitoringPage'
+import StudentLoginPage from './pages/StudentLoginPage'
+import ExamPage from './pages/ExamPage'
 
 // ── Placeholder untuk fase berikutnya ─────────────────────────────────────
 function ComingSoon({ name }) {
@@ -48,8 +50,10 @@ function ProtectedPage({ children }) {
 export default function App() {
   return (
     <Routes>
-      {/* Public */}
+      {/* Public / Student */}
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/student-login" element={<StudentLoginPage />} />
+      <Route path="/exam"  element={<ExamPage />} />
 
       {/* Protected — Admin Panel */}
       <Route path="/dashboard" element={<ProtectedPage><DashboardPage /></ProtectedPage>} />

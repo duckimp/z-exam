@@ -40,6 +40,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('peserta/{peserta}/force-finish', [\App\Http\Controllers\Api\SesiUjianController::class, 'forceFinish']);
     Route::post('peserta/{peserta}/reset', [\App\Http\Controllers\Api\SesiUjianController::class, 'resetPeserta']);
 
+    // ─ Fase 5: Exam Client (Siswa) ─
+    Route::post('exam/login', [\App\Http\Controllers\Api\ExamController::class, 'login']);
+    Route::post('exam/start', [\App\Http\Controllers\Api\ExamController::class, 'start']);
+    Route::post('exam/save', [\App\Http\Controllers\Api\ExamController::class, 'save']);
+    Route::post('exam/finish', [\App\Http\Controllers\Api\ExamController::class, 'finish']);
+
     // ─ Fase 7: Laporan (akan ditambah) ─
     // Route::get('laporan/{sesi}', [LaporanController::class, 'show']);
 });
