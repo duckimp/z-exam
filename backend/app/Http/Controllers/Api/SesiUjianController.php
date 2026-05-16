@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\SesiUjian;
 use App\Models\UjianPeserta;
+use App\Events\ParticipantStatusChanged;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -88,12 +89,17 @@ class SesiUjianController extends Controller
     public function forceFinish(UjianPeserta $peserta)
     {
         $peserta->update(['status' => 'FINISH', 'end_time' => now()]);
+        event(new ParticipantStatusChanged($peserta));
         return response()->json(['message' => 'Peserta dipaksa selesai.']);
     }
 
     public function resetPeserta(UjianPeserta $peserta)
     {
-        $peserta->delete(); // Hapus rekaman agar bisa mulai lagi (atau update status ke WAITING)
+        $sesiId = $peserta->sesi_id;
+        $peserta->delete(); 
+        
+        // Broadcast reset dengan data student saja (status WAITING/GHOST)
+        // Kita bisa buat event khusus atau gunakan event yang sama dengan data dummy
         return response()->json(['message' => 'Peserta direset.']);
     }
 }

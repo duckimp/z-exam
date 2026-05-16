@@ -8,6 +8,7 @@ use App\Models\Student;
 use App\Models\UjianPeserta;
 use App\Models\JawabanPeserta;
 use App\Models\Soal;
+use App\Events\ParticipantStatusChanged;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -114,6 +115,9 @@ class ExamController extends Controller
             // Ambil jawaban yang sudah tersimpan (jika ada — untuk resume)
             $jawaban = JawabanPeserta::where('ujian_peserta_id', $ujian->id)->get();
 
+            // Broadcast status
+            event(new ParticipantStatusChanged($ujian));
+
             return response()->json([
                 'ujian'   => $ujian,
                 'soal'    => $soal,
@@ -180,6 +184,8 @@ class ExamController extends Controller
             'end_time' => now(),
             'score' => $totalScore
         ]);
+
+        event(new ParticipantStatusChanged($ujian));
 
         return response()->json(['message' => 'Ujian berhasil diselesaikan.', 'score' => $totalScore]);
     }

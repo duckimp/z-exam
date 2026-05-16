@@ -5,6 +5,7 @@ import {
   ArrowLeft, RefreshCw, LogOut, Power, Search
 } from 'lucide-react'
 import api from '../services/api'
+import echo from '../services/echo'
 
 export default function MonitoringPage() {
   const { id } = useParams()
@@ -23,9 +24,32 @@ export default function MonitoringPage() {
 
   useEffect(() => {
     fetchMonitoring()
-    // Polling setiap 10 detik (fallback jika Reverb belum setup sempurna)
-    const interval = setInterval(fetchMonitoring, 10000)
-    return () => clearInterval(interval)
+
+    // ── Real-time Listener (Reverb) ──
+    const channel = echo.channel(`monitoring.${id}`)
+      .listen('.status.changed', (e) => {
+        console.log('Real-time update:', e)
+        setData(prev => {
+          const updatedPeserta = [...prev.peserta]
+          const idx = updatedPeserta.findIndex(p => p.id === e.peserta.id)
+          
+          if (idx !== -1) {
+            updatedPeserta[idx] = e.peserta
+          } else {
+            updatedPeserta.push(e.peserta)
+          }
+
+          return { ...prev, peserta: updatedPeserta }
+        })
+      })
+
+    // Polling setiap 30 detik (sebagai safety net)
+    const interval = setInterval(fetchMonitoring, 30000)
+    
+    return () => {
+      channel.stopListening('.status.changed')
+      clearInterval(interval)
+    }
   }, [id])
 
   const stats = {
