@@ -9,6 +9,7 @@ import AuthGuard from './components/AuthGuard'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import SiswaPage from './pages/SiswaPage'
+import BankSoalPage from './pages/BankSoalPage'
 
 // ── Placeholder untuk fase berikutnya ─────────────────────────────────────
 function ComingSoon({ name }) {
@@ -51,7 +52,7 @@ export default function App() {
       {/* Protected — Admin Panel */}
       <Route path="/dashboard" element={<ProtectedPage><DashboardPage /></ProtectedPage>} />
       <Route path="/siswa"     element={<ProtectedPage><SiswaPage /></ProtectedPage>} />
-      <Route path="/soal"      element={<ProtectedPage><ComingSoon name="Bank Soal" /></ProtectedPage>} />
+      <Route path="/soal"      element={<ProtectedPage><BankSoalPage /></ProtectedPage>} />
       <Route path="/ujian"     element={<ProtectedPage><ComingSoon name="Sesi Ujian" /></ProtectedPage>} />
       <Route path="/laporan"   element={<ProtectedPage><ComingSoon name="Laporan & Analitik" /></ProtectedPage>} />
       <Route path="/backup"    element={<ProtectedPage><ComingSoon name="Backup & Restore" /></ProtectedPage>} />
