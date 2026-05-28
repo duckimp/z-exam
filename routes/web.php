@@ -8,29 +8,37 @@ use Inertia\Inertia;
 use App\Http\Controllers\StudentExamController;
 
 Route::get('/', [StudentExamController::class, 'showLogin'])->name('student.login');
-Route::post('/student/login', [StudentExamController::class, 'login']);
-Route::get('/student/dashboard', [StudentExamController::class, 'dashboard'])->name('student.dashboard');
-Route::post('/student/exam/start', [StudentExamController::class, 'startExam'])->name('student.exam.start');
-Route::get('/exam', [StudentExamController::class, 'examPage'])->name('student.exam');
-Route::post('/student/save', [StudentExamController::class, 'saveAnswer']);
-Route::post('/student/finish', [StudentExamController::class, 'finishExam']);
-Route::post('/student/exam/leave', [StudentExamController::class, 'leaveExam'])->name('student.exam.leave');
-Route::post('/student/logout', [StudentExamController::class, 'logout'])->name('student.logout');
+Route::post('/student/login', [StudentExamController::class, 'login'])->middleware('throttle:10,1');
+Route::get('/student/auto-login', [StudentExamController::class, 'autoLogin'])->name('student.auto-login');
+
+// Fix #5 & #14 — student routes digroup, auth dicek di middleware bukan di tiap controller
+Route::middleware('student.auth')->group(function () {
+    Route::get('/student/dashboard', [StudentExamController::class, 'dashboard'])->name('student.dashboard');
+    Route::post('/student/exam/start', [StudentExamController::class, 'startExam'])->name('student.exam.start');
+    Route::get('/exam', [StudentExamController::class, 'examPage'])->name('student.exam');
+    Route::post('/student/save', [StudentExamController::class, 'saveAnswer'])->middleware('throttle:60,1');
+    Route::post('/student/save-beacon', [StudentExamController::class, 'saveBeacon']);  // beforeunload flush
+    Route::post('/student/finish', [StudentExamController::class, 'finishExam']);
+    Route::post('/student/exam/leave', [StudentExamController::class, 'leaveExam'])->name('student.exam.leave');
+    Route::post('/student/logout', [StudentExamController::class, 'logout'])->name('student.logout');
+});
 
 use App\Models\Student;
 use App\Models\SesiUjian;
 use App\Models\MataPelajaran;
 
 Route::get('/dashboard', function () {
-    $stats = [
-        'total_peserta' => Student::count(),
-        'sesi_aktif'    => SesiUjian::where('is_active', true)->count(),
-        'total_mapel'   => MataPelajaran::count(),
-        'recent_exams'  => SesiUjian::with('mapel')
-            ->latest()
-            ->take(5)
-            ->get()
-    ];
+    $stats = cache()->remember('admin_dashboard_stats', 30, function () {
+        return [
+            'total_peserta' => Student::count(),
+            'sesi_aktif'    => SesiUjian::where('is_active', true)->count(),
+            'total_mapel'   => MataPelajaran::count(),
+            'recent_exams'  => SesiUjian::with('mapel')
+                ->latest()
+                ->take(5)
+                ->get()
+        ];
+    });
     return Inertia::render('DashboardPage', [
         'stats' => $stats
     ]);

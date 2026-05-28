@@ -9,28 +9,77 @@ use App\Models\JawabanPeserta;
 use App\Models\Soal;
 use App\Events\ParticipantStatusChanged;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Inertia;
 
 class StudentExamController extends Controller
 {
-    /**
-     * Tampilkan Halaman Login Siswa
-     */
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /** Ambil student_id dari session, redirect ke login jika tidak ada */
+    private function requireStudent(): int|null
+    {
+        return session('student_id');
+    }
+
+    // ── Auto Login via QR ─────────────────────────────────────────────────────
+
+    public function autoLogin(Request $request)
+    {
+        $username = $request->query('username');
+        $token    = $request->query('token');
+
+        if (!$username || !$token) {
+            return redirect()->route('student.login')
+                ->withErrors(['message' => 'QR Code tidak valid.']);
+        }
+
+        $decoded = base64_decode(urldecode($token), true);
+        if (!$decoded || !str_contains($decoded, ':')) {
+            return redirect()->route('student.login')
+                ->withErrors(['message' => 'QR Code tidak valid atau sudah kadaluarsa.']);
+        }
+
+        [$tokenUsername, $nisn] = explode(':', $decoded, 2);
+
+        if ($tokenUsername !== $username) {
+            return redirect()->route('student.login')
+                ->withErrors(['message' => 'QR Code tidak valid.']);
+        }
+
+        $student = Student::where('username', $username)->first();
+
+        if (!$student) {
+            return redirect()->route('student.login')
+                ->withErrors(['message' => 'Akun tidak ditemukan.']);
+        }
+
+        if (!Hash::check($nisn, $student->password)) {
+            return redirect()->route('student.login')
+                ->withErrors(['message' => 'QR Code tidak cocok dengan akun ini.']);
+        }
+
+        if (!$student->is_active) {
+            return redirect()->route('student.login')
+                ->withErrors(['message' => 'Akun Anda dinonaktifkan.']);
+        }
+
+        session(['student_id' => $student->id]);
+        session()->save();
+
+        return redirect()->route('student.dashboard');
+    }
+
+    // ── Login ─────────────────────────────────────────────────────────────────
+
     public function showLogin()
     {
-        // Pastikan jika sudah login, langsung lempar ke dashboard
         if (session()->has('student_id')) {
             return redirect()->route('student.dashboard');
         }
-
         return Inertia::render('StudentLoginPage');
     }
 
-    /**
-     * Proses Login Siswa (Tanpa Token)
-     */
     public function login(Request $request)
     {
         $request->validate([
@@ -38,7 +87,6 @@ class StudentExamController extends Controller
             'password' => 'required|string',
         ]);
 
-        // Cek Kredensial Siswa
         $student = Student::where('username', $request->username)->first();
         if (!$student || !Hash::check($request->password, $student->password)) {
             return back()->withErrors(['message' => 'NISN atau Password salah.']);
@@ -48,95 +96,80 @@ class StudentExamController extends Controller
             return back()->withErrors(['message' => 'Akun Anda dinonaktifkan.']);
         }
 
-        // Set Student ID di Session PHP
-        session([
-            'student_id' => $student->id
-        ]);
+        session(['student_id' => $student->id]);
 
         return redirect()->route('student.dashboard');
     }
 
-    /**
-     * Halaman Dashboard Pemilihan Ujian Siswa
-     */
+    // ── Dashboard ─────────────────────────────────────────────────────────────
+
     public function dashboard()
     {
-        $studentId = session('student_id');
-        if (!$studentId) {
-            return redirect()->route('student.login');
-        }
+        $studentId = $this->requireStudent();
+        if (!$studentId) return redirect()->route('student.login');
 
         $student = Student::with('kelas')->findOrFail($studentId);
 
-        // Ambil sesi ujian aktif yang mapel-nya sesuai tingkat kelas siswa
+        // Fix #7 — join langsung, hindari whereHas correlated subquery
         $activeSessions = SesiUjian::with('mapel')
-            ->where('is_active', true)
-            ->whereHas('mapel', function ($query) use ($student) {
-                if ($student->kelas) {
-                    $query->where('tingkat', $student->kelas->tingkat);
-                }
-            })
+            ->where('sesi_ujian.is_active', true)
+            ->join('mata_pelajaran', 'mata_pelajaran.id', '=', 'sesi_ujian.mapel_id')
+            ->where('mata_pelajaran.tingkat', $student->kelas?->tingkat ?? '')
+            ->select('sesi_ujian.*')
             ->get();
 
-        // Mengambil seluruh rekaman status pengerjaan siswa dalam satu query tunggal untuk semua sesi aktif (Anti N+1 Query)
+        // Anti N+1 — satu query untuk semua status ujian siswa ini
         $ujianList = UjianPeserta::where('student_id', $studentId)
             ->whereIn('sesi_id', $activeSessions->pluck('id'))
             ->get()
             ->keyBy('sesi_id');
 
-        // Cek status pengerjaan siswa untuk setiap sesi di memori local (sangat cepat & ramah database)
         $sessions = $activeSessions->map(function ($sesi) use ($ujianList) {
             $ujian = $ujianList->get($sesi->id);
-
             return [
-                'id'          => $sesi->id,
-                'nama_sesi'   => $sesi->nama_sesi,
-                'mapel_nama'  => $sesi->mapel->nama_mapel ?? 'Mata Pelajaran',
-                'mapel_kode'  => $sesi->mapel->kode_mapel ?? '—',
-                'tanggal'     => $sesi->tanggal->format('Y-m-d'),
-                'jam_mulai'   => $sesi->jam_mulai,
-                'durasi'      => $sesi->durasi,
-                'use_token'   => $sesi->use_token,
-                'status'      => $ujian ? $ujian->status : 'WAITING',
+                'id'         => $sesi->id,
+                'nama_sesi'  => $sesi->nama_sesi,
+                'mapel_nama' => $sesi->mapel->nama_mapel ?? 'Mata Pelajaran',
+                'mapel_kode' => $sesi->mapel->kode_mapel ?? '—',
+                'tanggal'    => $sesi->tanggal->format('Y-m-d'),
+                'jam_mulai'  => $sesi->jam_mulai,
+                'durasi'     => $sesi->durasi,
+                'use_token'  => $sesi->use_token,
+                'status'     => $ujian ? $ujian->status : 'WAITING',
             ];
         });
 
         return Inertia::render('StudentDashboardPage', [
             'student'  => $student,
-            'sessions' => $sessions
+            'sessions' => $sessions,
         ]);
     }
 
-    /**
-     * Mulai Ujian (Pilih Sesi & Input Token)
-     */
+    // ── Start Exam ────────────────────────────────────────────────────────────
+
     public function startExam(Request $request)
     {
         $request->validate([
             'sesi_id' => 'required|exists:sesi_ujian,id',
-            'token'   => 'nullable|string'
+            'token'   => 'nullable|string',
         ]);
 
-        $studentId = session('student_id');
-        if (!$studentId) {
-            return redirect()->route('student.login');
-        }
+        $studentId = $this->requireStudent();
+        if (!$studentId) return redirect()->route('student.login');
 
         $student = Student::findOrFail($studentId);
-        $sesi = SesiUjian::findOrFail($request->sesi_id);
+        $sesi    = SesiUjian::findOrFail($request->sesi_id);
 
         if (!$sesi->is_active) {
             return back()->withErrors(['message' => 'Sesi ujian ini sedang tidak aktif.']);
         }
 
-        // Validasi Token jika sesi mewajibkan token
         if ($sesi->use_token) {
             if (!$request->filled('token') || strtoupper($request->token) !== strtoupper($sesi->token)) {
                 return back()->withErrors(['message' => 'Token ujian salah atau wajib diisi.']);
             }
         }
 
-        // Cek / Buat Rekaman UjianPeserta
         $ujian = UjianPeserta::where('sesi_id', $sesi->id)
             ->where('student_id', $student->id)
             ->first();
@@ -150,45 +183,44 @@ class StudentExamController extends Controller
         }
 
         if (!$ujian) {
+            // Fix #4 — generate & persist urutan soal saat pertama kali masuk
+            $soalIds = Soal::where('mapel_id', $sesi->mapel_id)->pluck('id')->toArray();
+            if ($sesi->random_soal) {
+                shuffle($soalIds);
+            }
+
             $ujian = UjianPeserta::create([
-                'sesi_id' => $sesi->id,
+                'sesi_id'    => $sesi->id,
                 'student_id' => $student->id,
-                'status' => 'START',
+                'status'     => 'START',
                 'start_time' => now(),
                 'ip_address' => $request->ip(),
                 'user_agent' => $request->userAgent(),
+                'soal_order' => $soalIds,
             ]);
 
-            // Broadcast status
             event(new ParticipantStatusChanged($ujian));
         }
 
-        // Set Sesi Ujian aktif di session PHP
         session([
             'sesi_id'          => $sesi->id,
             'ujian_peserta_id' => $ujian->id,
-            'exam_end_time'    => time() + ($sesi->durasi * 60)
+            'exam_end_time'    => time() + ($sesi->durasi * 60),
         ]);
 
         return redirect()->route('student.exam');
     }
 
-    /**
-     * Halaman Utama Pengerjaan Ujian
-     */
+    // ── Exam Page ─────────────────────────────────────────────────────────────
+
     public function examPage()
     {
-        $studentId = session('student_id');
+        $studentId = $this->requireStudent();
         $sesiId    = session('sesi_id');
         $ujianId   = session('ujian_peserta_id');
 
-        if (!$studentId) {
-            return redirect()->route('student.login');
-        }
-
-        if (!$sesiId || !$ujianId) {
-            return redirect()->route('student.dashboard');
-        }
+        if (!$studentId) return redirect()->route('student.login');
+        if (!$sesiId || !$ujianId) return redirect()->route('student.dashboard');
 
         $student = Student::findOrFail($studentId);
         $sesi    = SesiUjian::with('mapel')->findOrFail($sesiId);
@@ -196,48 +228,68 @@ class StudentExamController extends Controller
 
         if ($ujian->status === 'FINISH') {
             session()->forget(['sesi_id', 'ujian_peserta_id', 'exam_end_time']);
-            return redirect()->route('student.dashboard')->withErrors(['message' => 'Ujian sudah diselesaikan.']);
+            return redirect()->route('student.dashboard')
+                ->withErrors(['message' => 'Ujian sudah diselesaikan.']);
         }
 
-        // Ambil Soal Beserta Opsi dan Matching Items
-        $soal = Soal::with(['opsi', 'matchingItems'])
+        // Fix #3 — hanya ambil kolom yang dibutuhkan, bukan select *
+        // Fix #4 — gunakan urutan soal yang sudah dipersist
+        $soalQuery = Soal::with([
+                'opsi:id,soal_id,label,konten',          // hanya kolom yang dirender
+                'matchingItems:id,soal_id,item_kiri,item_kanan',
+            ])
             ->where('mapel_id', $sesi->mapel_id)
-            ->get();
+            ->select(['id', 'mapel_id', 'tipe', 'konten', 'bobot']);
 
-        // Acak Soal jika disetting random
-        if ($sesi->random_soal) {
-            $soal = $soal->shuffle();
+        if ($ujian->soal_order) {
+            // Urutan sudah dipersist — gunakan langsung tanpa shuffle ulang
+            $soalMap = $soalQuery->get()->keyBy('id');
+            $soal = collect($ujian->soal_order)
+                ->map(fn($id) => $soalMap->get($id))
+                ->filter()
+                ->values();
+        } else {
+            // Fallback untuk ujian lama yang belum punya soal_order
+            $soal = $soalQuery->get();
+            if ($sesi->random_soal) {
+                $soal = $soal->shuffle()->values();
+            }
         }
 
-        // Acak Opsi jika disetting random
-        $soal = $soal->map(function ($s) use ($sesi) {
-            if ($s->tipe === 'PG' && $sesi->random_opsi) {
-                $s->setRelation('opsi', $s->opsi->shuffle());
-            }
-            return $s;
-        });
+        // Fix #3 — acak opsi di sini (client tidak perlu tahu is_correct)
+        if ($sesi->random_opsi) {
+            $soal = $soal->map(function ($s) {
+                if ($s->tipe === 'PG') {
+                    $s->setRelation('opsi', $s->opsi->shuffle()->values());
+                }
+                return $s;
+            });
+        }
 
-        // Ambil jawaban yang sudah tersimpan
+        // Ambil jawaban tersimpan — satu query, pluck ke array
         $jawabanSaved = JawabanPeserta::where('ujian_peserta_id', $ujian->id)
             ->pluck('jawaban', 'soal_id')
             ->toArray();
 
-        // Sisa waktu (detik)
-        $endTime = session('exam_end_time', time() + ($sesi->durasi * 60));
+        $endTime  = session('exam_end_time', time() + ($sesi->durasi * 60));
         $timeLeft = max(0, $endTime - time());
 
         return Inertia::render('ExamPage', [
             'student'  => $student,
             'sesi'     => $sesi,
             'ujian'    => $ujian,
-            'soal'     => $soal,
+            'soal'     => $soal->values(),
             'jawaban'  => $jawabanSaved,
             'timeLeft' => $timeLeft,
         ]);
     }
 
+    // ── Save Answer ───────────────────────────────────────────────────────────
+
     /**
-     * Simpan Jawaban (Autosave via Ajax)
+     * Fix #1 & #2 — Pure upsert, TIDAK evaluasi is_correct di sini.
+     * Scoring dipindah sepenuhnya ke finishExam().
+     * Ini menghilangkan N+1 query (opsi + matchingItems) pada endpoint terpanas.
      */
     public function saveAnswer(Request $request)
     {
@@ -256,88 +308,131 @@ class StudentExamController extends Controller
             return response()->json(['message' => 'Sesi ujian sudah diselesaikan.'], 403);
         }
 
-        $soal = Soal::findOrFail($request->soal_id);
-
-        // Evaluasi jawaban benar untuk tipe PG dan MATCHING
-        $isCorrect = null;
-        if ($soal->tipe === 'PG') {
-            $opsiBenar = $soal->opsi()->where('is_correct', true)->first();
-            $isCorrect = ($opsiBenar && $opsiBenar->label === $request->jawaban);
-        } elseif ($soal->tipe === 'MATCHING') {
-            $matchingItems = $soal->matchingItems;
-            $studentAnswers = json_decode($request->jawaban, true);
-            
-            if (is_array($studentAnswers) && count($matchingItems) > 0) {
-                $allCorrect = true;
-                foreach ($matchingItems as $item) {
-                    $answeredRight = $studentAnswers[$item->id] ?? null;
-                    if ($answeredRight !== $item->item_kanan) {
-                        $allCorrect = false;
-                        break;
-                    }
-                }
-                $isCorrect = $allCorrect;
-            } else {
-                $isCorrect = false;
-            }
-        }
-
-        $jawaban = JawabanPeserta::updateOrCreate(
-            ['ujian_peserta_id' => $ujian->id, 'soal_id' => $soal->id],
-            [
-                'jawaban'    => $request->jawaban,
-                'is_correct' => $isCorrect,
-                'score'      => $isCorrect ? $soal->bobot : 0
-            ]
+        // Satu query saja — upsert raw jawaban tanpa evaluasi
+        JawabanPeserta::updateOrCreate(
+            ['ujian_peserta_id' => $ujian->id, 'soal_id' => $request->soal_id],
+            ['jawaban' => $request->jawaban]
         );
 
-        return response()->json(['status' => 'saved', 'jawaban' => $jawaban]);
+        return response()->json(['status' => 'saved']);
     }
 
     /**
-     * Selesaikan Ujian
+     * Beacon endpoint — dipanggil saat browser/tab ditutup (beforeunload).
+     * sendBeacon mengirim Content-Type: text/plain, jadi perlu decode manual.
+     * Tidak perlu return response (browser tidak menunggu).
+     */
+    public function saveBeacon(Request $request)
+    {
+        // Beacon mengirim body sebagai raw text/plain JSON
+        $body = json_decode($request->getContent(), true);
+
+        $soalId = $body['soal_id'] ?? null;
+        $jawaban = $body['jawaban'] ?? null;
+
+        if (!$soalId) return response()->noContent();
+
+        $ujianId = session('ujian_peserta_id');
+        if (!$ujianId) return response()->noContent();
+
+        $ujian = UjianPeserta::find($ujianId);
+        if (!$ujian || $ujian->status !== 'START') return response()->noContent();
+
+        // Validasi soal_id exists tanpa throwing exception
+        if (!\App\Models\Soal::where('id', $soalId)->exists()) return response()->noContent();
+
+        JawabanPeserta::updateOrCreate(
+            ['ujian_peserta_id' => $ujian->id, 'soal_id' => $soalId],
+            ['jawaban' => $jawaban]
+        );
+
+        return response()->noContent();
+    }
+
+    // ── Finish Exam ───────────────────────────────────────────────────────────
+
+    /**
+     * Fix #1 & #2 — Semua scoring dihitung di sini, bukan di saveAnswer.
+     * Dijalankan sekali saja saat ujian selesai.
      */
     public function finishExam()
     {
         $ujianId = session('ujian_peserta_id');
-        if (!$ujianId) {
-            return redirect()->route('student.login');
-        }
+        if (!$ujianId) return redirect()->route('student.login');
 
         $ujian = UjianPeserta::findOrFail($ujianId);
+
         if ($ujian->status === 'START') {
-            // Hitung skor total
-            $totalScore = JawabanPeserta::where('ujian_peserta_id', $ujian->id)
-                ->where('is_correct', true)
-                ->sum('score');
+            $sesi = SesiUjian::findOrFail($ujian->sesi_id);
+
+            // Ambil semua jawaban siswa ini sekaligus
+            $jawabanList = JawabanPeserta::where('ujian_peserta_id', $ujian->id)->get();
+
+            // Ambil semua soal yang relevan beserta opsi & matching — satu query
+            $soalIds = $jawabanList->pluck('soal_id')->unique()->toArray();
+            $soalMap = Soal::with(['opsi', 'matchingItems'])
+                ->whereIn('id', $soalIds)
+                ->get()
+                ->keyBy('id');
+
+            $totalScore = 0;
+
+            foreach ($jawabanList as $jawaban) {
+                $soal = $soalMap->get($jawaban->soal_id);
+                if (!$soal) continue;
+
+                $isCorrect = null;
+                $score     = 0;
+
+                if ($soal->tipe === 'PG') {
+                    $opsiBenar = $soal->opsi->firstWhere('is_correct', true);
+                    $isCorrect = $opsiBenar && $opsiBenar->label === $jawaban->jawaban;
+                    $score     = $isCorrect ? $soal->bobot : 0;
+
+                } elseif ($soal->tipe === 'MATCHING') {
+                    $studentAnswers = json_decode($jawaban->jawaban, true);
+                    if (is_array($studentAnswers) && $soal->matchingItems->isNotEmpty()) {
+                        $isCorrect = $soal->matchingItems->every(
+                            fn($item) => ($studentAnswers[$item->id] ?? null) === $item->item_kanan
+                        );
+                        $score = $isCorrect ? $soal->bobot : 0;
+                    } else {
+                        $isCorrect = false;
+                    }
+                }
+                // ESSAY — is_correct tetap null, dinilai manual oleh guru
+
+                $jawaban->update([
+                    'is_correct' => $isCorrect,
+                    'score'      => $score,
+                ]);
+
+                $totalScore += $score;
+            }
 
             $ujian->update([
-                'status' => 'FINISH',
+                'status'   => 'FINISH',
                 'end_time' => now(),
-                'score' => $totalScore
+                'score'    => $totalScore,
             ]);
 
             event(new ParticipantStatusChanged($ujian));
         }
 
-        // Hapus session ujian tapi PERTAHANKAN student_id!
         session()->forget(['sesi_id', 'ujian_peserta_id', 'exam_end_time']);
 
-        return redirect()->route('student.dashboard')->with('success', 'Ujian telah selesai. Terima kasih!');
+        return redirect()->route('student.dashboard')
+            ->with('success', 'Ujian telah selesai. Terima kasih!');
     }
 
-    /**
-     * Keluar / Logout Manual Siswa
-     */
+    // ── Logout & Leave ────────────────────────────────────────────────────────
+
     public function logout()
     {
         session()->forget(['student_id', 'sesi_id', 'ujian_peserta_id', 'exam_end_time']);
         return redirect()->route('student.login');
     }
 
-    /**
-     * Keluar Sementara dari Ujian (Kembali ke Dashboard)
-     */
     public function leaveExam()
     {
         session()->forget(['sesi_id', 'ujian_peserta_id', 'exam_end_time']);

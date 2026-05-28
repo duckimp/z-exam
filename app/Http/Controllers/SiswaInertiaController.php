@@ -10,9 +10,13 @@ use App\Models\Kelas;
 use App\Models\Student;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Maatwebsite\Excel\Facades\Excel;
 use Inertia\Inertia;
+use Endroid\QrCode\QrCode;
+use Endroid\QrCode\Writer\PngWriter;
+use Endroid\QrCode\ErrorCorrectionLevel;
 
 class SiswaInertiaController extends Controller
 {
@@ -249,13 +253,35 @@ class SiswaInertiaController extends Controller
             ->orderBy('nama')
             ->get();
 
-        // LAN friendly: bypass barcode / QR external
-        $students = $students->map(function ($s) {
-            $s->qr_base64 = null;
+        // Generate QR code login otomatis per siswa (PNG via GD)
+        // Auto-detect base URL dari request agar QR selalu sesuai IP/domain yang aktif
+        $baseUrl = $request->getSchemeAndHttpHost();
+        $students = $students->map(function ($s) use ($baseUrl) {
+            $loginUrl = $baseUrl . '/student/auto-login?username=' . urlencode($s->username) . '&token=' . urlencode(base64_encode($s->username . ':' . $s->nisn));
+            $qr = QrCode::create($loginUrl)
+                ->setSize(160)
+                ->setMargin(1)
+                ->setErrorCorrectionLevel(ErrorCorrectionLevel::Medium);
+            $writer = new PngWriter();
+            $result = $writer->write($qr);
+            $s->qr_base64 = 'data:image/png;base64,' . base64_encode($result->getString());
             return $s;
         });
 
-        $pdf = Pdf::loadView('pdf.kartu-ujian', compact('students', 'kelas'))
+        // Ambil settings kartu ujian
+        $settings = DB::table('settings')->get()->pluck('value', 'key');
+
+        // Konversi TTD ke base64 untuk DomPDF
+        $ttdBase64 = null;
+        if (!empty($settings['kepala_sekolah_ttd'])) {
+            $ttdPath = storage_path('app/public/' . $settings['kepala_sekolah_ttd']);
+            if (file_exists($ttdPath)) {
+                $mime = mime_content_type($ttdPath);
+                $ttdBase64 = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($ttdPath));
+            }
+        }
+
+        $pdf = Pdf::loadView('pdf.kartu-ujian', compact('students', 'kelas', 'settings', 'ttdBase64'))
             ->setPaper('A4')
             ->setOption('margin-top', '8mm')
             ->setOption('margin-bottom', '8mm')

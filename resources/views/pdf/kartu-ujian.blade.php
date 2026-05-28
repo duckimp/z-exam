@@ -39,13 +39,18 @@
 
         /* Content */
         .content-table { width: 100%; margin-top: 10px; padding: 0 10px; }
-        .photo-cell { width: 70px; vertical-align: top; }
-        .photo { 
-            width: 60px; height: 80px; border: 1px solid #ddd; 
-            background: #f3f4f6; color: #9ca3af; font-size: 8px; 
-            text-align: center; line-height: 80px; 
+        .qr-cell { width: 90px; vertical-align: top; text-align: center; }
+        .qr-img {
+            width: 85px; height: 85px;
+            border: 1px solid #3b82f6;
+            border-radius: 4px;
         }
-        .info-cell { vertical-align: top; padding-left: 10px; }
+        .qr-label {
+            font-size: 6px; color: #6b7280;
+            text-align: center; margin-top: 2px;
+            line-height: 1.3;
+        }
+        .info-cell { vertical-align: top; padding-left: 10px; padding-right: 105px; }
         
         .label { font-size: 7px; color: #6b7280; text-transform: uppercase; margin-bottom: 2px; }
         .value { font-size: 10px; font-weight: bold; color: #000; margin-bottom: 8px; }
@@ -57,6 +62,8 @@
             padding: 5px 8px;
             border-radius: 4px;
             margin-top: 5px;
+            display: inline-block;
+            min-width: 100px;
         }
         .creds-title { font-size: 7px; font-weight: bold; color: #1e40af; margin-bottom: 3px; }
         .creds-item { font-size: 9px; font-family: monospace; }
@@ -69,13 +76,12 @@
             right: 10px;
             text-align: right;
         }
-        .qr { width: 40px; height: 40px; border: 1px solid #000; margin-left: auto; margin-bottom: 2px; }
-        .qr-dots {
-            width: 100%; height: 100%;
-            background-image: radial-gradient(#000 20%, transparent 20%);
-            background-size: 5px 5px; opacity: 0.6;
-        }
-        .version { font-size: 6px; color: #9ca3af; }
+        .ttd-box { text-align: center; }
+        .ttd-img { height: 36px; max-width: 90px; object-fit: contain; display: block; margin: 0 auto 2px; }
+        .ttd-tanggal { font-size: 6px; color: #374151; margin-bottom: 2px; }
+        .ttd-nama { font-size: 7px; font-weight: bold; color: #111; border-top: 1px solid #374151; padding-top: 2px; margin-top: 2px; white-space: nowrap; }
+        .ttd-nip  { font-size: 6px; color: #6b7280; font-family: monospace; }
+        .version { font-size: 6px; color: #9ca3af; margin-top: 3px; }
 
         .page-break { page-break-after: always; }
     </style>
@@ -102,8 +108,15 @@
 
                         <table class="content-table">
                             <tr>
-                                <td class="photo-cell">
-                                    <div class="photo">2x3 PHOTO</div>
+                                <td class="qr-cell">
+                                    @if($s->qr_base64)
+                                        <img src="{{ $s->qr_base64 }}" class="qr-img" alt="QR Login">
+                                    @else
+                                        <div style="width:70px;height:70px;border:1px dashed #9ca3af;border-radius:4px;background:#f9fafb;">
+                                            <span style="font-size:7px;color:#9ca3af;display:block;text-align:center;padding-top:28px;">QR N/A</span>
+                                        </div>
+                                    @endif
+                                    <div class="qr-label">Scan untuk<br>login otomatis</div>
                                 </td>
                                 <td class="info-cell">
                                     <div class="label">Nama Lengkap</div>
@@ -122,11 +135,20 @@
                         </table>
 
                         <div class="footer">
-                            <div class="qr">
-                                @if($s->qr_base64)
-                                    <img src="{{ $s->qr_base64 }}" style="width: 100%; height: 100%;">
+                            <div class="ttd-box">
+                                @if(!empty($settings['kartu_tanggal_cetak']))
+                                    <div class="ttd-tanggal">{{ $settings['kartu_tanggal_cetak'] }}</div>
+                                @endif
+                                @if($ttdBase64)
+                                    <img src="{{ $ttdBase64 }}" class="ttd-img" alt="TTD">
                                 @else
-                                    <div class="qr-dots"></div>
+                                    <div style="height:36px;"></div>
+                                @endif
+                                @if(!empty($settings['kepala_sekolah_nama']))
+                                    <div class="ttd-nama">{{ $settings['kepala_sekolah_nama'] }}</div>
+                                @endif
+                                @if(!empty($settings['kepala_sekolah_nip']))
+                                    <div class="ttd-nip">NIP. {{ $settings['kepala_sekolah_nip'] }}</div>
                                 @endif
                             </div>
                             <div class="version">Z-Exam v1.0.0</div>

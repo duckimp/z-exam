@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { router } from '@inertiajs/react'
 import { 
   ChevronLeft, ChevronRight, Clock, User, 
@@ -18,7 +18,11 @@ export default function ExamPage({ student, sesi, ujian, soal, jawaban, timeLeft
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [agreedToSubmit, setAgreedToSubmit] = useState(false)
 
-  // ── Keamanan: Fullscreen & Disable Shortcuts ──
+  // Refs untuk menghindari stale closure & memory leak
+  const finishingRef    = useRef(false)   // cegah double-submit
+  const antiCurangRef   = useRef(sesi?.anti_curang)  // Fix #13 — tidak perlu sesi object di deps
+
+  // ── Keamanan: Fullscreen ──────────────────────────────────────────────────
   const requestFullscreen = () => {
     const el = document.documentElement
     if (el.requestFullscreen) el.requestFullscreen()
@@ -36,12 +40,36 @@ export default function ExamPage({ student, sesi, ujian, soal, jawaban, timeLeft
     }
     document.addEventListener('fullscreenchange', handleFsChange)
     return () => document.removeEventListener('fullscreenchange', handleFsChange)
+  }, [])  // mount/unmount saja
+
+  // Fix #11 — submitFinish di luar setState, pakai useCallback agar stabil
+  const submitFinish = useCallback(async () => {
+    if (finishingRef.current) return   // cegah double-submit
+    finishingRef.current = true
+    setFinishing(true)
+    router.post('/student/finish', {}, {
+      onFinish: () => {
+        setFinishing(false)
+        setShowConfirmModal(false)
+        finishingRef.current = false
+      }
+    })
   }, [])
 
+  // Fix #11 & #13 — violations watcher terpisah, tidak ada side effect di setState
   useEffect(() => {
-    const handleContext = (e) => e.preventDefault() // Disable Right Click
+    if (violations >= 3 && antiCurangRef.current) {
+      alert('Peringatan: Anda terdeteksi meninggalkan halaman ujian lebih dari 3 kali. Ujian akan dihentikan.')
+      submitFinish()
+    }
+  }, [violations, submitFinish])
+
+  // Fix #13 — gunakan antiCurangRef, bukan sesi object sebagai dependency
+  useEffect(() => {
+    if (!antiCurangRef.current) return
+
+    const handleContext = (e) => e.preventDefault()
     const handleKey = (e) => {
-      // Disable Ctrl+C, Ctrl+V, Ctrl+U, F12, PrintScreen
       if (
         (e.ctrlKey && ['c', 'v', 'u', 'p', 's'].includes(e.key.toLowerCase())) ||
         ['F12', 'PrintScreen'].includes(e.key)
@@ -50,42 +78,33 @@ export default function ExamPage({ student, sesi, ujian, soal, jawaban, timeLeft
         alert('Fitur ini dinonaktifkan demi keamanan ujian.')
       }
     }
-
     const handleBlur = () => {
       setViolations(v => {
         const newVal = v + 1
-        if (newVal >= 3) {
-          alert('Peringatan: Anda terdeteksi meninggalkan halaman ujian lebih dari 3 kali. Ujian akan dihentikan.')
-          submitFinish()
-        } else {
+        if (newVal < 3) {
           alert(`Peringatan (${newVal}/3): Jangan meninggalkan halaman ujian!`)
         }
         return newVal
       })
     }
 
-    if (sesi?.anti_curang) {
-      document.addEventListener('contextmenu', handleContext)
-      document.addEventListener('keydown', handleKey)
-      window.addEventListener('blur', handleBlur)
-    }
+    document.addEventListener('contextmenu', handleContext)
+    document.addEventListener('keydown', handleKey)
+    window.addEventListener('blur', handleBlur)
 
     return () => {
-      if (sesi?.anti_curang) {
-        document.removeEventListener('contextmenu', handleContext)
-        document.removeEventListener('keydown', handleKey)
-        window.removeEventListener('blur', handleBlur)
-      }
+      document.removeEventListener('contextmenu', handleContext)
+      document.removeEventListener('keydown', handleKey)
+      window.removeEventListener('blur', handleBlur)
     }
-  }, [sesi])
+  }, [])  // Fix #13 — mount/unmount saja, tidak bergantung pada sesi object
 
-  // Timer Logic
+  // Fix #12 — Timer stabil, tidak restart setiap detik
   useEffect(() => {
-    if (timeLeft <= 0) {
+    if (initialTimeLeft <= 0) {
       handleAutoFinish()
       return
     }
-
     const interval = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
@@ -96,9 +115,8 @@ export default function ExamPage({ student, sesi, ujian, soal, jawaban, timeLeft
         return prev - 1
       })
     }, 1000)
-
     return () => clearInterval(interval)
-  }, [timeLeft])
+  }, [])  // Fix #12 — hanya mount, tidak [timeLeft]
 
   const formatTime = (seconds) => {
     const h = Math.floor(seconds / 3600)
@@ -107,15 +125,10 @@ export default function ExamPage({ student, sesi, ujian, soal, jawaban, timeLeft
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
   }
 
-  // Save Answer API (Optimasi Jaringan: Buffering Lokal)
+  // Save Answer — update lokal dulu, kirim ke server hanya saat forcePersist
   const saveAnswer = async (soalId, value, forcePersist = false) => {
-    // Selalu update state lokal agar UI langsung responsif
-    setAnswers(prev => ({
-      ...prev,
-      [soalId]: value
-    }))
+    setAnswers(prev => ({ ...prev, [soalId]: value }))
 
-    // Hanya kirim request ke server jika forcePersist aktif (eksekusi penting)
     if (forcePersist) {
       setSaving(true)
       try {
@@ -131,7 +144,35 @@ export default function ExamPage({ student, sesi, ujian, soal, jawaban, timeLeft
     }
   }
 
-  // Berpindah soal sekaligus menyimpan jawaban soal sebelumnya ke server
+  // Refs untuk akses nilai terbaru di dalam event listener tanpa re-render
+  const answersRef    = useRef(answers)
+  const currentIdxRef = useRef(currentIdx)
+  useEffect(() => { answersRef.current = answers }, [answers])
+  useEffect(() => { currentIdxRef.current = currentIdx }, [currentIdx])
+
+  // Flush jawaban soal aktif saat browser/tab ditutup atau HP mati
+  // Menggunakan sendBeacon agar request tetap terkirim meski halaman sudah unload
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      const idx     = currentIdxRef.current
+      const current = soal[idx]
+      if (!current) return
+
+      const value = answersRef.current[current.id]
+      if (value === undefined || value === null) return
+
+      // sendBeacon — fire-and-forget, tidak butuh response, aman saat unload
+      const payload = JSON.stringify({
+        soal_id: current.id,
+        jawaban: value,
+        _token:  document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+      })
+      navigator.sendBeacon('/student/save-beacon', payload)
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [soal])  // soal tidak berubah selama ujian, aman sebagai dep
   const navigateTo = async (newIdx) => {
     const currentVal = answers[currentSoal?.id]
     if (currentVal !== undefined && currentSoal) {
@@ -145,19 +186,7 @@ export default function ExamPage({ student, sesi, ujian, soal, jawaban, timeLeft
     submitFinish()
   }
 
-  const submitFinish = async () => {
-    setFinishing(true)
-    const currentVal = answers[currentSoal?.id]
-    if (currentVal !== undefined && currentSoal) {
-      await saveAnswer(currentSoal.id, currentVal, true)
-    }
-    router.post('/student/finish', {}, {
-      onFinish: () => {
-        setFinishing(false)
-        setShowConfirmModal(false)
-      }
-    })
-  }
+  // submitFinish sudah didefinisikan di atas via useCallback
 
   const handleManualLeave = () => {
     if (confirm('Apakah Anda yakin ingin keluar dari layar ujian? Ujian Anda akan tetap aktif di server dan dapat dilanjutkan selama sisa waktu masih ada.')) {

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 class SystemInertiaController extends Controller
@@ -27,11 +28,35 @@ class SystemInertiaController extends Controller
     public function updateSettings(Request $request)
     {
         $data = $request->validate([
-            'app_name'     => 'required|string|max:100',
-            'school_name'  => 'required|string|max:100',
-            'footer_text'  => 'nullable|string|max:150',
-            'theme_color'  => 'nullable|string|max:20',
+            'app_name'              => 'required|string|max:100',
+            'school_name'           => 'required|string|max:100',
+            'footer_text'           => 'nullable|string|max:150',
+            'theme_color'           => 'nullable|string|max:20',
+            'kepala_sekolah_nama'   => 'nullable|string|max:100',
+            'kepala_sekolah_nip'    => 'nullable|string|max:30',
+            'kartu_tanggal_cetak'   => 'nullable|string|max:50',
+            'kepala_sekolah_ttd'    => 'nullable|image|mimes:png,jpg,jpeg|max:2048',
         ]);
+
+        // Handle upload TTD
+        if ($request->hasFile('kepala_sekolah_ttd')) {
+            // Hapus file lama jika ada
+            $oldTtd = DB::table('settings')->where('key', 'kepala_sekolah_ttd')->value('value');
+            if ($oldTtd && Storage::disk('public')->exists($oldTtd)) {
+                Storage::disk('public')->delete($oldTtd);
+            }
+            $path = $request->file('kepala_sekolah_ttd')->store('ttd', 'public');
+            $data['kepala_sekolah_ttd'] = $path;
+        } elseif ($request->input('remove_ttd') == '1') {
+            // Hapus TTD
+            $oldTtd = DB::table('settings')->where('key', 'kepala_sekolah_ttd')->value('value');
+            if ($oldTtd && Storage::disk('public')->exists($oldTtd)) {
+                Storage::disk('public')->delete($oldTtd);
+            }
+            $data['kepala_sekolah_ttd'] = null;
+        } else {
+            unset($data['kepala_sekolah_ttd']);
+        }
 
         foreach ($data as $key => $value) {
             DB::table('settings')->updateOrInsert(

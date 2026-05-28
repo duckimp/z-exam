@@ -24,6 +24,7 @@
         "vite": "^7.0.7"
     },
     "dependencies": {
+        "html5-qrcode": "^2.3.8",
         "katex": "^0.16.47",
         "laravel-echo": "^2.3.4",
         "lucide-react": "^1.16.0",

@@ -19,6 +19,11 @@ class UjianPeserta extends Model
         'score',
         'ip_address',
         'user_agent',
+        'soal_order',
+    ];
+
+    protected $casts = [
+        'soal_order' => 'array',
     ];
 
     public function sesi(): BelongsTo
