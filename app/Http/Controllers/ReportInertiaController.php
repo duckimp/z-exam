@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\SesiUjian;
 use App\Models\UjianPeserta;
+use App\Models\Kelas;
+use App\Models\Student;
 use App\Exports\RekapNilaiExport;
 use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
@@ -30,14 +32,34 @@ class ReportInertiaController extends Controller
     /**
      * Tampilkan Analitik Hasil Ujian Sesi
      */
-    public function analitik($id)
+    public function analitik(Request $request, $id)
     {
         $sesi = SesiUjian::with('mapel')->findOrFail($id);
         
-        $peserta = UjianPeserta::with(['student', 'jawaban.soal'])
-            ->where('sesi_id', $id)
-            ->get();
+        // Get filter parameters
+        $kelasId = $request->query('kelas_id');
+        $generasi = $request->query('generasi'); // tingkat
+        $showAll = $request->query('semua', false);
         
+        // Build base query for peserta - only load student and kelas for analytics
+        // jawaban.soal is loaded separately when needed (e.g., essay correction modal)
+        $pesertaQuery = UjianPeserta::with(['student.kelas'])
+            ->where('sesi_id', $id);
+        
+        // Apply filters
+        if ($kelasId && !$showAll) {
+            $pesertaQuery->whereHas('student', function ($q) use ($kelasId) {
+                $q->where('kelas_id', $kelasId);
+            });
+        } elseif ($generasi && !$showAll) {
+            $pesertaQuery->whereHas('student.kelas', function ($q) use ($generasi) {
+                $q->where('tingkat', $generasi);
+            });
+        }
+        
+        $peserta = $pesertaQuery->get();
+        
+        // Calculate stats
         $stats = [
             'total_peserta' => $peserta->count(),
             'rata_rata'     => round($peserta->avg('score') ?? 0, 2),
@@ -51,11 +73,85 @@ class ReportInertiaController extends Controller
                 '81-100'=> $peserta->whereBetween('score', [81, 100])->count(),
             ]
         ];
+        
+        // Get top 3 highest scores
+        $top3Tertinggi = $peserta
+            ->sortByDesc('score')
+            ->take(3)
+            ->map(function ($p) {
+                return [
+                    'nama' => $p->student->nama ?? '-',
+                    'kelas' => $p->student->kelas->nama_kelas ?? '-',
+                    'score' => $p->score ?? 0,
+                    'nisn' => $p->student->nisn ?? '-',
+                ];
+            })
+            ->values()
+            ->toArray();
+        
+        // Get top 3 lowest scores (only those who have scores > 0 or have attempted)
+        $top3Terendah = $peserta
+            ->where('score', '>', 0) // Only count those who have attempted
+            ->sortBy('score')
+            ->take(3)
+            ->map(function ($p) {
+                return [
+                    'nama' => $p->student->nama ?? '-',
+                    'kelas' => $p->student->kelas->nama_kelas ?? '-',
+                    'score' => $p->score ?? 0,
+                    'nisn' => $p->student->nisn ?? '-',
+                ];
+            })
+            ->values()
+            ->toArray();
+        
+        // Get filter options - classes that have participants in this session
+        $kelasOptions = Kelas::whereHas('students.ujianPeserta', function ($q) use ($id) {
+                $q->where('sesi_id', $id);
+            })
+            ->orderBy('tingkat')
+            ->orderBy('nama_kelas')
+            ->get(['id', 'nama_kelas', 'tingkat'])
+            ->map(function ($k) {
+                return [
+                    'id' => $k->id,
+                    'nama_kelas' => $k->nama_kelas,
+                    'tingkat' => $k->tingkat,
+                    'label' => "{$k->nama_kelas} (Kelas {$k->tingkat})"
+                ];
+            })
+            ->toArray();
+        
+        // Get unique generasi/tingkat
+        $generasiOptions = Kelas::whereHas('students.ujianPeserta', function ($q) use ($id) {
+                $q->where('sesi_id', $id);
+            })
+            ->distinct('tingkat')
+            ->orderBy('tingkat')
+            ->pluck('tingkat')
+            ->map(function ($t) {
+                return [
+                    'value' => $t,
+                    'label' => "Kelas {$t} (Semua Paralel)"
+                ];
+            })
+            ->toArray();
 
         return Inertia::render('AnalitikPage', [
             'sesi' => $sesi,
             'stats' => $stats,
-            'peserta' => $peserta
+            'peserta' => $peserta,
+            'top_3_tertinggi' => $top3Tertinggi,
+            'top_3_terendah' => $top3Terendah,
+            'filter_options' => [
+                'kelas' => $kelasOptions,
+                'generasi' => $generasiOptions,
+            ],
+            'current_filter' => [
+                'kelas_id' => $kelasId,
+                'generasi' => $generasi,
+                'semua' => $showAll,
+            ],
         ]);
     }
 
