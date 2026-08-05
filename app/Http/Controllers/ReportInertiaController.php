@@ -207,11 +207,53 @@ class ReportInertiaController extends Controller
 
     /**
      * Export Detail Jawaban Siswa (PDF)
+     * Menampilkan SEMUA soal sesuai soal_order — termasuk yang tidak dijawab.
      */
     public function exportPdfJawaban(UjianPeserta $peserta)
     {
-        $peserta->load(['student', 'sesi.mapel', 'jawaban.soal']);
-        $pdf = Pdf::loadView('pdf.hasil_ujian', compact('peserta'));
+        $peserta->load(['student', 'sesi.mapel', 'jawaban']);
+
+        // Ambil semua soal sesuai urutan yang dipersist di soal_order
+        $soalOrder = $peserta->soal_order ?? [];
+        if (empty($soalOrder)) {
+            // Fallback: ambil semua soal mapel terurut
+            $soalOrder = \App\Models\Soal::where('mapel_id', $peserta->sesi->mapel_id)
+                ->orderBy('urutan')->pluck('id')->toArray();
+        }
+
+        $soalMap = \App\Models\Soal::with('opsi')
+            ->whereIn('id', $soalOrder)
+            ->get()
+            ->keyBy('id');
+
+        // Index jawaban by soal_id
+        $jawabanMap = $peserta->jawaban->keyBy('soal_id');
+
+        // Susun list soal+jawaban sesuai urutan
+        $soalList = collect($soalOrder)->map(function ($soalId, $idx) use ($soalMap, $jawabanMap) {
+            $soal   = $soalMap->get($soalId);
+            $jawaban = $jawabanMap->get($soalId);
+            return [
+                'nomor'      => $idx + 1,
+                'konten'     => $soal ? html_entity_decode($soal->konten, ENT_QUOTES | ENT_HTML5, 'UTF-8') : '[Soal tidak ditemukan]',
+                'tipe'       => $soal?->tipe ?? 'PG',
+                'jawaban'    => $jawaban?->jawaban ?? null,
+                'is_correct' => $jawaban?->is_correct,
+                'score'      => $jawaban?->score ?? 0,
+                'dijawab'    => $jawaban !== null,
+            ];
+        })->values();
+
+        // Hitung skor maksimal (jumlah bobot semua soal)
+        $skorMaksimal = $soalMap->sum('bobot');
+
+        $pdf = Pdf::loadView('pdf.hasil_ujian', [
+            'peserta'      => $peserta,
+            'soalList'     => $soalList,
+            'totalSoal'    => count($soalOrder),
+            'skorMaksimal' => $skorMaksimal,
+        ]);
+
         $filename = "hasil_ujian_" . strtolower(str_replace(' ', '_', $peserta->student->nama)) . ".pdf";
         return $pdf->stream($filename);
     }
