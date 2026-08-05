@@ -101,10 +101,10 @@ class BankSoalInertiaController extends Controller
             $soal = Soal::create([
                 'mapel_id'    => $request->mapel_id,
                 'tipe'        => $request->tipe,
-                'konten'      => $request->konten,
+                'konten'      => $this->escapeHtmlOutsideMath($request->konten),
                 'bobot'       => $request->bobot,
                 'urutan'      => $request->urutan ?? 0,
-                'kunci_essay' => $request->kunci_essay,
+                'kunci_essay' => $this->escapeHtmlOutsideMath($request->kunci_essay),
             ]);
 
             // Simpan Opsi (jika PG)
@@ -112,7 +112,7 @@ class BankSoalInertiaController extends Controller
                 foreach ($request->opsi as $o) {
                     $soal->opsi()->create([
                         'label'      => $o['label'],
-                        'konten'     => $o['konten'] ?? '',
+                        'konten'     => $this->escapeHtmlOutsideMath($o['konten'] ?? ''),
                         'is_correct' => $o['is_correct'] ?? false,
                     ]);
                 }
@@ -123,8 +123,8 @@ class BankSoalInertiaController extends Controller
                 foreach ($request->matching as $m) {
                     if (!empty($m['item_kiri']) && !empty($m['item_kanan'])) {
                         $soal->matchingItems()->create([
-                            'item_kiri'  => $m['item_kiri'],
-                            'item_kanan' => $m['item_kanan'],
+                            'item_kiri'  => $this->escapeHtmlOutsideMath($m['item_kiri']),
+                            'item_kanan' => $this->escapeHtmlOutsideMath($m['item_kanan']),
                         ]);
                     }
                 }
@@ -152,10 +152,10 @@ class BankSoalInertiaController extends Controller
         \DB::transaction(function () use ($request, $soal) {
             $soal->update([
                 'tipe'        => $request->tipe,
-                'konten'      => $request->konten,
+                'konten'      => $this->escapeHtmlOutsideMath($request->konten),
                 'bobot'       => $request->bobot,
                 'urutan'      => $request->urutan ?? 0,
-                'kunci_essay' => $request->kunci_essay,
+                'kunci_essay' => $this->escapeHtmlOutsideMath($request->kunci_essay),
             ]);
 
             // Hapus relasi lama
@@ -167,7 +167,7 @@ class BankSoalInertiaController extends Controller
                 foreach ($request->opsi as $o) {
                     $soal->opsi()->create([
                         'label'      => $o['label'],
-                        'konten'     => $o['konten'] ?? '',
+                        'konten'     => $this->escapeHtmlOutsideMath($o['konten'] ?? ''),
                         'is_correct' => $o['is_correct'] ?? false,
                     ]);
                 }
@@ -178,8 +178,8 @@ class BankSoalInertiaController extends Controller
                 foreach ($request->matching as $m) {
                     if (!empty($m['item_kiri']) && !empty($m['item_kanan'])) {
                         $soal->matchingItems()->create([
-                            'item_kiri'  => $m['item_kiri'],
-                            'item_kanan' => $m['item_kanan'],
+                            'item_kiri'  => $this->escapeHtmlOutsideMath($m['item_kiri']),
+                            'item_kanan' => $this->escapeHtmlOutsideMath($m['item_kanan']),
                         ]);
                     }
                 }
@@ -333,5 +333,18 @@ class BankSoalInertiaController extends Controller
         $count = $query->update(['bobot' => $request->bobot]);
 
         return back()->with('success', 'Berhasil memperbarui bobot ' . $count . ' soal menjadi ' . $request->bobot . '.');
+    }
+
+    private function escapeHtmlOutsideMath($text)
+    {
+        if (!$text) return '';
+        // Split by math pattern to protect KaTeX formulas
+        $parts = preg_split('/(\$\$[\s\S]+?\$\$|\$[\s\S]+?\$)/', $text, -1, PREG_SPLIT_DELIM_CAPTURE);
+        foreach ($parts as &$part) {
+            if ($part && !str_starts_with($part, '$')) {
+                $part = htmlspecialchars($part, ENT_NOQUOTES, 'UTF-8', false);
+            }
+        }
+        return implode('', $parts);
     }
 }

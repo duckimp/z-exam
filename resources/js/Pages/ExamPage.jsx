@@ -5,6 +5,47 @@ import {
   CheckCircle2, AlertTriangle, Menu, X, Save, ShieldCheck, LogOut
 } from 'lucide-react'
 import axios from 'axios'
+import 'katex/dist/katex.min.css'
+import { InlineMath, BlockMath } from 'react-katex'
+
+// Helper to escape unsafe HTML tags
+function escapeUnsafeHtml(htmlStr) {
+  if (!htmlStr) return '';
+  return htmlStr.replace(/<(\/?)([a-zA-Z0-9]+)([^>]*)>/g, (match, slash, tagName, attribs) => {
+    const lowerTag = tagName.toLowerCase();
+    const safeTags = ['strong', 'b', 'em', 'i', 'u', 'br', 'img', 'div', 'span', 'p'];
+    
+    // Allow 'a' tag ONLY if it has an href attribute (i.e. it's a real formatting link)
+    if (lowerTag === 'a' && attribs.toLowerCase().includes('href')) {
+      return match;
+    }
+    
+    if (safeTags.includes(lowerTag)) {
+      return match;
+    }
+    
+    return `&lt;${slash}${tagName}${attribs}&gt;`;
+  });
+}
+
+// Helper to parse math from text
+function renderMathContent(text = '') {
+  if (!text) return ''
+  
+  // Simple check to render equations if they exist
+  const parts = text.split(/(\$\$[\s\S]+?\$\$|\$[\s\S]+?\$)/g)
+  return parts.map((part, idx) => {
+    if (part.startsWith('$$') && part.endsWith('$$')) {
+      const eq = part.slice(2, -2)
+      return <BlockMath key={idx} math={eq} />
+    }
+    if (part.startsWith('$') && part.endsWith('$')) {
+      const eq = part.slice(1, -1)
+      return <InlineMath key={idx} math={eq} />
+    }
+    return <span key={idx} dangerouslySetInnerHTML={{ __html: escapeUnsafeHtml(part) }} />
+  })
+}
 
 export default function ExamPage({ student, sesi, ujian, soal, jawaban, timeLeft: initialTimeLeft }) {
   const [currentIdx, setCurrentIdx] = useState(0)
@@ -352,7 +393,7 @@ export default function ExamPage({ student, sesi, ujian, soal, jawaban, timeLeft
                </div>
                <div className="p-6 sm:p-10">
                   <div className="text-lg leading-relaxed mb-8 text-slate-800 select-none">
-                    <div dangerouslySetInnerHTML={{ __html: currentSoal.konten }} />
+                    <div>{renderMathContent(currentSoal.konten)}</div>
                   </div>
 
                   {/* Options / Answer Box */}
@@ -375,7 +416,7 @@ export default function ExamPage({ student, sesi, ujian, soal, jawaban, timeLeft
                           }`}>
                             {letter}
                           </span>
-                          <div className="flex-1 pt-1 text-sm font-semibold text-slate-700" dangerouslySetInnerHTML={{ __html: o.konten }} />
+                          <div className="flex-1 pt-1 text-sm font-semibold text-slate-700">{renderMathContent(o.konten)}</div>
                         </button>
                       )
                     })}

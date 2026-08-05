@@ -110,12 +110,32 @@ class StudentExamController extends Controller
 
         $student = Student::with('kelas')->findOrFail($studentId);
 
-        // Fix #7 — join langsung, hindari whereHas correlated subquery
+        $kelasId = $student->kelas_id;
+        $tingkat = $student->kelas?->tingkat ?? '';
+
+        // Ambil ID mapel yang sesuai tingkat (untuk fallback sesi tanpa kelas_id)
+        $mapelIdsByTingkat = $tingkat
+            ? \DB::table('mata_pelajaran')->where('tingkat', $tingkat)->pluck('id')
+            : collect();
+
+        // Ambil sesi aktif yang cocok dengan kelas spesifik siswa (kelas_id),
+        // ATAU sesi yang kelas_id-nya null dan mapel-nya sesuai tingkat kelas siswa (backward compat).
+        // Hindari join di dalam closure — gunakan whereIn subquery agar kompatibel PostgreSQL.
         $activeSessions = SesiUjian::with('mapel')
-            ->where('sesi_ujian.is_active', true)
-            ->join('mata_pelajaran', 'mata_pelajaran.id', '=', 'sesi_ujian.mapel_id')
-            ->where('mata_pelajaran.tingkat', $student->kelas?->tingkat ?? '')
-            ->select('sesi_ujian.*')
+            ->where('is_active', true)
+            ->where(function ($q) use ($kelasId, $mapelIdsByTingkat) {
+                // Sesi spesifik kelas ini
+                if ($kelasId) {
+                    $q->where('kelas_id', $kelasId);
+                }
+                // Fallback: sesi lama tanpa kelas_id yang mapel-nya sesuai tingkat
+                if ($mapelIdsByTingkat->isNotEmpty()) {
+                    $q->orWhere(function ($q2) use ($mapelIdsByTingkat) {
+                        $q2->whereNull('kelas_id')
+                           ->whereIn('mapel_id', $mapelIdsByTingkat);
+                    });
+                }
+            })
             ->get();
 
         // Anti N+1 — satu query untuk semua status ujian siswa ini
@@ -144,7 +164,6 @@ class StudentExamController extends Controller
             'sessions' => $sessions,
         ]);
     }
-
     // ── Start Exam ────────────────────────────────────────────────────────────
 
     public function startExam(Request $request)

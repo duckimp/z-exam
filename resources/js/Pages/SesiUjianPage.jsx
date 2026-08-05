@@ -1,12 +1,17 @@
 import { useState } from 'react'
-import { useForm, router, Head, Link } from '@inertiajs/react'
+import { useForm, router, Head, Link, usePage } from '@inertiajs/react'
 import { 
   ClipboardList, Plus, Edit2, Trash2, 
-  Activity, Play, Pause, RefreshCw, Clock, Calendar, X, Copy
+  Activity, Play, Pause, RefreshCw, Clock, Calendar, X, Copy, ShieldCheck
 } from 'lucide-react'
 import AdminLayout from '@/Layouts/AdminLayout'
 
-export default function SesiUjianPage({ sesi, mapel }) {
+export default function SesiUjianPage({ sesi, mapel, kelas }) {
+  const { auth } = usePage().props
+  const userRoles = auth?.user?.roles ?? []
+  const isSuperAdmin = userRoles.includes('super_admin')
+  const isPengawas = userRoles.includes('pengawas')
+
   const [showModal, setShowModal] = useState(false)
   const [editingData, setEditingData] = useState(null)
 
@@ -35,6 +40,7 @@ export default function SesiUjianPage({ sesi, mapel }) {
   const form = useForm({
     nama_sesi: '',
     mapel_id: '',
+    kelas_id: '',
     tanggal: new Date().toISOString().split('T')[0],
     jam_mulai: '07:30',
     durasi: 90,
@@ -50,6 +56,7 @@ export default function SesiUjianPage({ sesi, mapel }) {
     form.setData({
       nama_sesi: '',
       mapel_id: '',
+      kelas_id: '',
       tanggal: new Date().toISOString().split('T')[0],
       jam_mulai: '07:30',
       durasi: 90,
@@ -66,6 +73,7 @@ export default function SesiUjianPage({ sesi, mapel }) {
     form.setData({
       nama_sesi: s.nama_sesi,
       mapel_id: s.mapel_id,
+      kelas_id: s.kelas_id || '',
       tanggal: s.tanggal,
       jam_mulai: s.jam_mulai.substring(0, 5),
       durasi: s.durasi,
@@ -82,6 +90,7 @@ export default function SesiUjianPage({ sesi, mapel }) {
     form.setData({
       nama_sesi: s.nama_sesi,
       mapel_id: s.mapel_id,
+      kelas_id: s.kelas_id || '',
       tanggal: s.tanggal,
       jam_mulai: s.jam_mulai.substring(0, 5),
       durasi: s.durasi,
@@ -133,9 +142,11 @@ export default function SesiUjianPage({ sesi, mapel }) {
             <h1 className="page-title text-2xl font-black text-slate-800">Sesi Ujian</h1>
             <p className="page-desc text-sm text-slate-500 mt-1">Kontrol jadwal, anti-curang, token, dan pemantauan ujian siswa secara real-time.</p>
           </div>
-          <button className="btn btn-primary" onClick={handleOpenAdd}>
-            <Plus size={14} className="mr-1.5" /> Buat Sesi Baru
-          </button>
+          {isSuperAdmin && (
+            <button className="btn btn-primary" onClick={handleOpenAdd}>
+              <Plus size={14} className="mr-1.5" /> Buat Sesi Baru
+            </button>
+          )}
         </div>
 
         {/* Filter Bar */}
@@ -217,6 +228,11 @@ export default function SesiUjianPage({ sesi, mapel }) {
                         <span className="px-2.5 py-0.5 bg-indigo-50 border border-indigo-200 text-indigo-750 text-[10px] font-black rounded-lg uppercase tracking-wider">
                           {s.mapel?.nama_mapel}
                         </span>
+                        {s.kelas && (
+                          <span className="px-2.5 py-0.5 bg-blue-50 border border-blue-200 text-blue-750 text-[10px] font-black rounded-lg uppercase tracking-wider">
+                            {s.kelas.nama_kelas}
+                          </span>
+                        )}
                         {!s.is_active && (
                           <span className="px-2 py-0.5 bg-red-50 border border-red-200 text-red-750 text-[9px] font-black rounded-lg uppercase tracking-wider">
                             Tutup
@@ -233,6 +249,9 @@ export default function SesiUjianPage({ sesi, mapel }) {
                         <span className="flex items-center gap-1"><Calendar size={13} /> {s.tanggal ? s.tanggal.substring(0, 10) : ''}</span>
                         <span className="flex items-center gap-1"><Clock size={13} /> {s.jam_mulai.substring(0, 5)} · {s.durasi} Menit</span>
                         <span className="flex items-center gap-1"><ClipboardList size={13} /> {s.peserta_ujian_count || 0} Peserta</span>
+                        <span className="flex items-center gap-1">
+                          <ShieldCheck size={13} /> {s.pengawas ? `Pengawas: ${s.pengawas.name}` : 'Belum ada pengawas'}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -244,9 +263,11 @@ export default function SesiUjianPage({ sesi, mapel }) {
                         <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Token</div>
                         <div className="text-2xl font-black text-indigo-600 font-mono tracking-widest mt-0.5 select-all">{s.token}</div>
                       </div>
-                      <button className="btn btn-sm btn-ghost text-[10px] font-bold p-1 text-slate-400 hover:text-indigo-600 flex items-center gap-1" onClick={() => handleRefreshToken(s.id)}>
-                        <RefreshCw size={10} /> Regenerasi
-                      </button>
+                      {isSuperAdmin && (
+                        <button className="btn btn-sm btn-ghost text-[10px] font-bold p-1 text-slate-400 hover:text-indigo-600 flex items-center gap-1" onClick={() => handleRefreshToken(s.id)}>
+                          <RefreshCw size={10} /> Regenerasi
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <div className="w-full lg:w-44 text-center px-6 py-4 lg:py-0 border-t lg:border-t-0 lg:border-l lg:border-r border-slate-100 flex flex-col justify-center gap-1">
@@ -260,23 +281,27 @@ export default function SesiUjianPage({ sesi, mapel }) {
                     <Link href={`/monitoring/${s.id}`} className="btn btn-outline py-2.5 font-bold flex items-center gap-1.5">
                       <Activity size={14} /> Monitoring
                     </Link>
-                    <button 
-                      className={`btn py-2.5 px-4 font-bold flex items-center justify-center ${s.is_active ? 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'}`} 
-                      onClick={() => handleToggleActive(s)} 
-                      title={s.is_active ? 'Matikan Sesi' : 'Aktifkan Sesi'}
-                    >
-                      {s.is_active ? <Pause size={14} className="mr-1" /> : <Play size={14} className="mr-1" />}
-                      {s.is_active ? 'Tutup' : 'Buka'}
-                    </button>
-                    <button className="btn btn-ghost p-2.5 text-slate-400 hover:text-indigo-650 border border-slate-200 rounded-xl" onClick={() => handleOpenDuplicate(s)} title="Duplikat Sesi">
-                      <Copy size={15} />
-                    </button>
-                    <button className="btn btn-ghost p-2.5 text-slate-400 hover:text-slate-700 border border-slate-200 rounded-xl" onClick={() => handleOpenEdit(s)} title="Edit Sesi">
-                      <Edit2 size={15} />
-                    </button>
-                    <button className="btn btn-ghost p-2.5 text-slate-400 hover:text-red-650 border border-slate-200 rounded-xl" onClick={() => handleDelete(s.id)} title="Hapus Sesi">
-                      <Trash2 size={15} />
-                    </button>
+                    {isSuperAdmin && (
+                      <>
+                        <button 
+                          className={`btn py-2.5 px-4 font-bold flex items-center justify-center ${s.is_active ? 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'}`} 
+                          onClick={() => handleToggleActive(s)} 
+                          title={s.is_active ? 'Matikan Sesi' : 'Aktifkan Sesi'}
+                        >
+                          {s.is_active ? <Pause size={14} className="mr-1" /> : <Play size={14} className="mr-1" />}
+                          {s.is_active ? 'Tutup' : 'Buka'}
+                        </button>
+                        <button className="btn btn-ghost p-2.5 text-slate-400 hover:text-indigo-650 border border-slate-200 rounded-xl" onClick={() => handleOpenDuplicate(s)} title="Duplikat Sesi">
+                          <Copy size={15} />
+                        </button>
+                        <button className="btn btn-ghost p-2.5 text-slate-400 hover:text-slate-700 border border-slate-200 rounded-xl" onClick={() => handleOpenEdit(s)} title="Edit Sesi">
+                          <Edit2 size={15} />
+                        </button>
+                        <button className="btn btn-ghost p-2.5 text-slate-400 hover:text-red-650 border border-slate-200 rounded-xl" onClick={() => handleDelete(s.id)} title="Hapus Sesi">
+                          <Trash2 size={15} />
+                        </button>
+                      </>
+                    )}
                   </div>
 
                 </div>
@@ -319,6 +344,21 @@ export default function SesiUjianPage({ sesi, mapel }) {
                     <option value="">-- Pilih Mata Pelajaran --</option>
                     {mapel.map(m => (
                       <option key={m.id} value={m.id}>{m.nama_mapel} ({m.kode_mapel})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-slate-500">Kelas Peserta</label>
+                  <select 
+                    className="input bg-white font-semibold" 
+                    value={form.data.kelas_id} 
+                    onChange={e => form.setData('kelas_id', e.target.value)}
+                    required
+                  >
+                    <option value="">-- Pilih Kelas --</option>
+                    {kelas.map(k => (
+                      <option key={k.id} value={k.id}>{k.nama_kelas} ({k.tingkat})</option>
                     ))}
                   </select>
                 </div>

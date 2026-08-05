@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   {
     section: 'Manajemen',
     items: [
+      { to: '/users',     icon: ShieldCheck,     label: 'User',           roles: ['super_admin'] },
       { to: '/siswa',     icon: Users,           label: 'Peserta',        roles: ['super_admin'] },
       { to: '/soal',      icon: BookOpen,         label: 'Bank Soal',      roles: ['super_admin', 'guru'] },
       { to: '/ujian/sesi', icon: ClipboardList,    label: 'Sesi Ujian',     roles: ['super_admin', 'pengawas'] },

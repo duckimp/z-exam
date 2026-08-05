@@ -33,14 +33,22 @@ Route::get('/dashboard', function () {
             'total_peserta' => Student::count(),
             'sesi_aktif'    => SesiUjian::where('is_active', true)->count(),
             'total_mapel'   => MataPelajaran::count(),
-            'recent_exams'  => SesiUjian::with('mapel')
+            'recent_exams'  => SesiUjian::with(['mapel', 'kelas', 'pengawas'])
                 ->latest()
                 ->take(5)
                 ->get()
         ];
     });
+
+    $activeSessions = SesiUjian::with(['mapel', 'kelas', 'pengawas'])
+        ->where('is_active', true)
+        ->orderBy('tanggal')
+        ->orderBy('jam_mulai')
+        ->get();
+
     return Inertia::render('DashboardPage', [
-        'stats' => $stats
+        'stats' => $stats,
+        'activeSessions' => $activeSessions,
     ]);
 })->middleware(['auth', 'role:super_admin,guru,pengawas'])->name('dashboard');
 
@@ -55,6 +63,7 @@ use App\Http\Controllers\SystemInertiaController;
 use App\Http\Controllers\MonitoringInertiaController;
 
 use App\Http\Controllers\ReportInertiaController;
+use App\Http\Controllers\UserInertiaController;
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -63,6 +72,12 @@ Route::middleware('auth')->group(function () {
 
     // ── KELAS 1: Akses Khusus Super Admin ────────────────────────────────────
     Route::middleware('role:super_admin')->group(function () {
+        // Manajemen User
+        Route::get('/users', [UserInertiaController::class, 'index'])->name('users.index');
+        Route::post('/users', [UserInertiaController::class, 'store'])->name('users.store');
+        Route::put('/users/{user}', [UserInertiaController::class, 'update'])->name('users.update');
+        Route::delete('/users/{user}', [UserInertiaController::class, 'destroy'])->name('users.destroy');
+
         // Siswa & Kelas
         Route::get('/siswa', [SiswaInertiaController::class, 'index'])->name('siswa.index');
         Route::post('/siswa', [SiswaInertiaController::class, 'storeSiswa']);
@@ -124,6 +139,8 @@ Route::middleware('auth')->group(function () {
         Route::put('/ujian/sesi/{sesi}', [SesiUjianInertiaController::class, 'update']);
         Route::delete('/ujian/sesi/{sesi}', [SesiUjianInertiaController::class, 'destroy']);
         Route::post('/ujian/sesi/{sesi}/refresh-token', [SesiUjianInertiaController::class, 'refreshToken']);
+        Route::post('/ujian/sesi/{sesi}/claim', [SesiUjianInertiaController::class, 'claimSesi'])->name('sesi.claim');
+        Route::post('/ujian/sesi/{sesi}/release', [SesiUjianInertiaController::class, 'releaseSesi'])->name('sesi.release');
 
         // Monitoring
         Route::get('/monitoring/{id}', [MonitoringInertiaController::class, 'index'])->name('monitoring.index');

@@ -6,6 +6,47 @@ import {
   Trophy, AlertTriangle, GraduationCap
 } from 'lucide-react'
 import AdminLayout from '@/Layouts/AdminLayout'
+import 'katex/dist/katex.min.css'
+import { InlineMath, BlockMath } from 'react-katex'
+
+// Helper to escape unsafe HTML tags
+function escapeUnsafeHtml(htmlStr) {
+  if (!htmlStr) return '';
+  return htmlStr.replace(/<(\/?)([a-zA-Z0-9]+)([^>]*)>/g, (match, slash, tagName, attribs) => {
+    const lowerTag = tagName.toLowerCase();
+    const safeTags = ['strong', 'b', 'em', 'i', 'u', 'br', 'img', 'div', 'span', 'p'];
+    
+    // Allow 'a' tag ONLY if it has an href attribute (i.e. it's a real formatting link)
+    if (lowerTag === 'a' && attribs.toLowerCase().includes('href')) {
+      return match;
+    }
+    
+    if (safeTags.includes(lowerTag)) {
+      return match;
+    }
+    
+    return `&lt;${slash}${tagName}${attribs}&gt;`;
+  });
+}
+
+// Helper to parse math from text
+function renderMathContent(text = '') {
+  if (!text) return ''
+  
+  // Simple check to render equations if they exist
+  const parts = text.split(/(\$\$[\s\S]+?\$\$|\$[\s\S]+?\$)/g)
+  return parts.map((part, idx) => {
+    if (part.startsWith('$$') && part.endsWith('$$')) {
+      const eq = part.slice(2, -2)
+      return <BlockMath key={idx} math={eq} />
+    }
+    if (part.startsWith('$') && part.endsWith('$')) {
+      const eq = part.slice(1, -1)
+      return <InlineMath key={idx} math={eq} />
+    }
+    return <span key={idx} dangerouslySetInnerHTML={{ __html: escapeUnsafeHtml(part) }} />
+  })
+}
 
 export default function AnalitikPage({ 
   sesi, 
@@ -586,7 +627,7 @@ export default function AnalitikPage({
                       {/* Soal */}
                       <div>
                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider font-mono">Soal Essay #{idx + 1} (Bobot Maks: {j.soal?.bobot ?? 0})</span>
-                         <div className="text-sm font-bold text-slate-755 mt-1.5 leading-relaxed" dangerouslySetInnerHTML={{ __html: j.soal?.konten }} />
+                         <div className="text-sm font-bold text-slate-755 mt-1.5 leading-relaxed">{renderMathContent(j.soal?.konten)}</div>
                       </div>
 
                       {/* Jawaban Siswa */}

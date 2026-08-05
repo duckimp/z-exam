@@ -31,13 +31,13 @@ class SoalExcelImport implements ToCollection
 
         foreach ($row as $idx => $val) {
             $valStr = strtolower(trim((string)$val));
-            if ($valStr === 'jenis' || $valStr === 'tipe') {
+            if ($valStr === 'jenis' || $valStr === 'tipe' || str_contains($valStr, 'jenis') || str_contains($valStr, 'tipe')) {
                 $map['jenis'] = $idx;
                 $foundRequired++;
-            } elseif ($valStr === 'kode' || $valStr === 'code') {
+            } elseif ($valStr === 'kode' || $valStr === 'code' || str_contains($valStr, 'kode') || str_contains($valStr, 'code')) {
                 $map['kode'] = $idx;
                 $foundRequired++;
-            } elseif ($valStr === 'isi' || $valStr === 'konten' || $valStr === 'pertanyaan') {
+            } elseif ($valStr === 'isi' || $valStr === 'konten' || $valStr === 'pertanyaan' || str_contains($valStr, 'isi') || str_contains($valStr, 'konten') || str_contains($valStr, 'pertanyaan')) {
                 $map['isi'] = $idx;
                 $foundRequired++;
             } elseif ($valStr === 'no' || $valStr === 'nomor' || $valStr === '#') {
@@ -123,7 +123,7 @@ class SoalExcelImport implements ToCollection
                 $row = $rowsArray[$i];
                 $jenis = strtoupper(trim((string)($row[$jenisIdx] ?? '')));
                 $kode = strtoupper(trim((string)($row[$kodeIdx] ?? '')));
-                $isi = html_entity_decode(trim((string)($row[$isiIdx] ?? '')), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $isi = $this->escapeHtmlOutsideMath(html_entity_decode(trim((string)($row[$isiIdx] ?? '')), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
                 $status = trim((string)($row[$statusIdx] ?? '0'));
                 $butir = trim((string)($row[$butirIdx] ?? '1'));
                 $no = trim((string)($row[$noIdx] ?? '0'));
@@ -176,7 +176,7 @@ class SoalExcelImport implements ToCollection
 
             for ($i = 1; $i < count($rowsArray); $i++) {
                 $row = $rowsArray[$i];
-                $konten = html_entity_decode(trim((string)($row[$soalIdx] ?? '')), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $konten = $this->escapeHtmlOutsideMath(html_entity_decode(trim((string)($row[$soalIdx] ?? '')), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
                 if (empty($konten)) {
                     continue; // Skip baris kosong
                 }
@@ -203,7 +203,7 @@ class SoalExcelImport implements ToCollection
                                 if ($colIdx !== null && isset($row[$colIdx]) && trim((string)$row[$colIdx]) !== '') {
                                     $opts[] = [
                                         'label' => $label,
-                                        'konten' => html_entity_decode(trim((string)$row[$colIdx]), ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+                                        'konten' => $this->escapeHtmlOutsideMath(html_entity_decode(trim((string)$row[$colIdx]), ENT_QUOTES | ENT_HTML5, 'UTF-8')),
                                         'is_correct' => $kunci === $label
                                     ];
                                 }
@@ -245,7 +245,7 @@ class SoalExcelImport implements ToCollection
                             if ($colIdx !== null && isset($row[$colIdx]) && trim((string)$row[$colIdx]) !== '') {
                                 $soalObj->opsi()->create([
                                     'label'      => $label,
-                                    'konten'     => html_entity_decode(trim((string)$row[$colIdx]), ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+                                    'konten'     => $this->escapeHtmlOutsideMath(html_entity_decode(trim((string)$row[$colIdx]), ENT_QUOTES | ENT_HTML5, 'UTF-8')),
                                     'is_correct' => $kunci === $label,
                                 ]);
                             }
@@ -339,6 +339,19 @@ class SoalExcelImport implements ToCollection
     public function getQuestions(): array
     {
         return $this->questions;
+    }
+
+    private function escapeHtmlOutsideMath($text)
+    {
+        if (!$text) return '';
+        // Split by math pattern to protect KaTeX formulas
+        $parts = preg_split('/(\$\$[\s\S]+?\$\$|\$[\s\S]+?\$)/', $text, -1, PREG_SPLIT_DELIM_CAPTURE);
+        foreach ($parts as &$part) {
+            if ($part && !str_starts_with($part, '$')) {
+                $part = htmlspecialchars($part, ENT_NOQUOTES, 'UTF-8', false);
+            }
+        }
+        return implode('', $parts);
     }
 }
 

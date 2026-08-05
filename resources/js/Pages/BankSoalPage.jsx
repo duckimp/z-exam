@@ -8,6 +8,26 @@ import AdminLayout from '@/Layouts/AdminLayout'
 import 'katex/dist/katex.min.css'
 import { InlineMath, BlockMath } from 'react-katex'
 
+// Helper to escape unsafe HTML tags
+function escapeUnsafeHtml(htmlStr) {
+  if (!htmlStr) return '';
+  return htmlStr.replace(/<(\/?)([a-zA-Z0-9]+)([^>]*)>/g, (match, slash, tagName, attribs) => {
+    const lowerTag = tagName.toLowerCase();
+    const safeTags = ['strong', 'b', 'em', 'i', 'u', 'br', 'img', 'div', 'span', 'p'];
+    
+    // Allow 'a' tag ONLY if it has an href attribute (i.e. it's a real formatting link)
+    if (lowerTag === 'a' && attribs.toLowerCase().includes('href')) {
+      return match;
+    }
+    
+    if (safeTags.includes(lowerTag)) {
+      return match;
+    }
+    
+    return `&lt;${slash}${tagName}${attribs}&gt;`;
+  });
+}
+
 // Helper to parse math from text
 function renderMathContent(text = '') {
   if (!text) return ''
@@ -23,7 +43,7 @@ function renderMathContent(text = '') {
       const eq = part.slice(1, -1)
       return <InlineMath key={idx} math={eq} />
     }
-    return <span key={idx} dangerouslySetInnerHTML={{ __html: part }} />
+    return <span key={idx} dangerouslySetInnerHTML={{ __html: escapeUnsafeHtml(part) }} />
   })
 }
 
@@ -219,18 +239,29 @@ export default function BankSoalPage({ mapel, selectedMapel, soal, filters }) {
     formData.append('file', formImport.data.file)
     formData.append('mapel_id', selectedMapel.id)
 
+    const csrfMeta = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+    const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/)
+    const xsrfCookie = match ? decodeURIComponent(match[1]) : ''
+
+    const headers = {}
+    if (csrfMeta) headers['X-CSRF-TOKEN'] = csrfMeta
+    if (xsrfCookie) headers['X-XSRF-TOKEN'] = xsrfCookie
+
     setIsPreviewLoading(true)
     fetch('/soal/import/preview', {
       method: 'POST',
       body: formData,
-      headers: {
-        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-      }
+      credentials: 'same-origin',
+      headers: headers
     })
     .then(async (res) => {
       const contentType = res.headers.get('content-type')
       const isJson = contentType && contentType.includes('application/json')
       
+      if (res.status === 419) {
+        throw new Error('Sesi login Anda telah berakhir. Halaman akan direfresh, silakan coba lagi.')
+      }
+
       if (!res.ok) {
         if (isJson) {
           const err = await res.json()
@@ -253,7 +284,12 @@ export default function BankSoalPage({ mapel, selectedMapel, soal, filters }) {
       formImport.reset()
     })
     .catch(err => {
-      alert(err.message)
+      if (err.message.includes('Sesi login')) {
+        alert(err.message)
+        window.location.reload()
+      } else {
+        alert(err.message)
+      }
     })
     .finally(() => {
       setIsPreviewLoading(false)
@@ -262,21 +298,33 @@ export default function BankSoalPage({ mapel, selectedMapel, soal, filters }) {
 
   const handleConfirmSaveImport = () => {
     setIsSavingPreview(true)
+    const csrfMeta = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+    const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/)
+    const xsrfCookie = match ? decodeURIComponent(match[1]) : ''
+
+    const headers = {
+      'Content-Type': 'application/json'
+    }
+    if (csrfMeta) headers['X-CSRF-TOKEN'] = csrfMeta
+    if (xsrfCookie) headers['X-XSRF-TOKEN'] = xsrfCookie
+
     fetch('/soal/import/confirm', {
       method: 'POST',
       body: JSON.stringify({
         mapel_id: selectedMapel.id,
         questions: previewQuestions
       }),
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-      }
+      credentials: 'same-origin',
+      headers: headers
     })
     .then(async (res) => {
       const contentType = res.headers.get('content-type')
       const isJson = contentType && contentType.includes('application/json')
       
+      if (res.status === 419) {
+        throw new Error('Sesi login Anda telah berakhir. Halaman akan direfresh, silakan coba lagi.')
+      }
+
       if (!res.ok) {
         if (isJson) {
           const err = await res.json()
@@ -489,7 +537,7 @@ export default function BankSoalPage({ mapel, selectedMapel, soal, filters }) {
                             <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-black flex-shrink-0 ${o.is_correct ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
                               {o.label}
                             </span>
-                            <div className="pt-0.5" dangerouslySetInnerHTML={{ __html: o.konten }} />
+                            <div className="pt-0.5">{renderMathContent(o.konten)}</div>
                           </div>
                         ))}
                       </div>
@@ -863,7 +911,7 @@ export default function BankSoalPage({ mapel, selectedMapel, soal, filters }) {
                               }`}>
                                 {opt.label}
                               </span>
-                              <div className="flex-1 pt-0.5" dangerouslySetInnerHTML={{ __html: opt.konten }} />
+                              <div className="flex-1 pt-0.5">{renderMathContent(opt.konten)}</div>
                               {opt.is_correct && (
                                 <span className="bg-emerald-100 border border-emerald-300 text-emerald-800 text-[10px] font-black uppercase px-2 py-0.5 rounded-md shrink-0">
                                   Kunci

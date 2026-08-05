@@ -12,6 +12,8 @@ class SesiUjian extends Model
 
     protected $fillable = [
         'mapel_id',
+        'kelas_id',
+        'pengawas_id',
         'nama_sesi',
         'tanggal',
         'jam_mulai',
@@ -36,6 +38,16 @@ class SesiUjian extends Model
     public function mapel(): BelongsTo
     {
         return $this->belongsTo(MataPelajaran::class, 'mapel_id');
+    }
+
+    public function kelas(): BelongsTo
+    {
+        return $this->belongsTo(Kelas::class, 'kelas_id');
+    }
+
+    public function pengawas(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'pengawas_id');
     }
 
     public function pesertaUjian(): HasMany

@@ -25,7 +25,7 @@ class RoleAndUserSeeder extends Seeder
             [
                 'username' => 'admin',
                 'name'     => 'Administrator',
-                'password' => bcrypt('admin123'),
+                'password' => bcrypt('password123'),
             ]
         );
         $admin->assignRole($superAdmin);
@@ -34,8 +34,8 @@ class RoleAndUserSeeder extends Seeder
         $guruUser = User::updateOrCreate(
             ['email' => 'guru@z-exam.local'],
             [
-                'username' => 'budi',
-                'name'     => 'Budi Santoso',
+                'username' => 'guru',
+                'name'     => 'Guru',
                 'password' => bcrypt('guru123'),
             ]
         );
@@ -45,8 +45,8 @@ class RoleAndUserSeeder extends Seeder
         $pengawasUser = User::updateOrCreate(
             ['email' => 'pengawas@z-exam.local'],
             [
-                'username' => 'siti',
-                'name'     => 'Siti Aminah',
+                'username' => 'pengawas',
+                'name'     => 'Pengawas',
                 'password' => bcrypt('pengawas123'),
             ]
         );
@@ -56,9 +56,9 @@ class RoleAndUserSeeder extends Seeder
         $this->command->table(
             ['Role', 'Username', 'Password'],
             [
-                ['super_admin', 'admin', 'admin123'],
-                ['guru',        'budi',  'guru123'],
-                ['pengawas',    'siti',  'pengawas123'],
+                ['super_admin', 'admin', 'password123'],
+                ['guru',        'guru',  'guru123'],
+                ['pengawas',    'pengawas',  'pengawas123'],
             ]
         );
     }
