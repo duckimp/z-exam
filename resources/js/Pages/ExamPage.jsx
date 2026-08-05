@@ -63,6 +63,13 @@ export default function ExamPage({ student, sesi, ujian, soal, jawaban, timeLeft
   const finishingRef    = useRef(false)   // cegah double-submit
   const antiCurangRef   = useRef(sesi?.anti_curang)  // Fix #13 — tidak perlu sesi object di deps
 
+  // Refs untuk akses nilai terbaru di dalam callback tanpa re-render
+  // (dideklarasikan di sini agar bisa diakses submitFinish di bawah)
+  const answersRef    = useRef(answers)
+  const currentIdxRef = useRef(currentIdx)
+  useEffect(() => { answersRef.current = answers }, [answers])
+  useEffect(() => { currentIdxRef.current = currentIdx }, [currentIdx])
+
   // ── Keamanan: Fullscreen ──────────────────────────────────────────────────
   const requestFullscreen = () => {
     const el = document.documentElement
@@ -83,11 +90,30 @@ export default function ExamPage({ student, sesi, ujian, soal, jawaban, timeLeft
     return () => document.removeEventListener('fullscreenchange', handleFsChange)
   }, [])  // mount/unmount saja
 
-  // Fix #11 — submitFinish di luar setState, pakai useCallback agar stabil
+  // Fix #11 — submitFinish, simpan jawaban aktif dulu sebelum finish
+  // Ini memastikan soal terakhir (yang tidak punya tombol 'next') ikut tersimpan.
   const submitFinish = useCallback(async () => {
     if (finishingRef.current) return   // cegah double-submit
     finishingRef.current = true
     setFinishing(true)
+
+    // Simpan jawaban soal yang sedang aktif sebelum kirim request finish
+    const idx = currentIdxRef.current
+    const activeSoal = soal[idx]
+    if (activeSoal) {
+      const currentVal = answersRef.current[activeSoal.id]
+      if (currentVal !== undefined && currentVal !== null) {
+        try {
+          await axios.post('/student/save', {
+            soal_id: activeSoal.id,
+            jawaban: currentVal
+          })
+        } catch (err) {
+          console.error('Gagal menyimpan jawaban terakhir sebelum finish:', err)
+        }
+      }
+    }
+
     router.post('/student/finish', {}, {
       onFinish: () => {
         setFinishing(false)
@@ -95,7 +121,7 @@ export default function ExamPage({ student, sesi, ujian, soal, jawaban, timeLeft
         finishingRef.current = false
       }
     })
-  }, [])
+  }, [soal])  // soal stabil selama ujian berlangsung
 
   // Fix #11 & #13 — violations watcher terpisah, tidak ada side effect di setState
   useEffect(() => {
@@ -185,11 +211,7 @@ export default function ExamPage({ student, sesi, ujian, soal, jawaban, timeLeft
     }
   }
 
-  // Refs untuk akses nilai terbaru di dalam event listener tanpa re-render
-  const answersRef    = useRef(answers)
-  const currentIdxRef = useRef(currentIdx)
-  useEffect(() => { answersRef.current = answers }, [answers])
-  useEffect(() => { currentIdxRef.current = currentIdx }, [currentIdx])
+  // (answersRef & currentIdxRef sudah dideklarasikan di atas, sebelum submitFinish)
 
   // Flush jawaban soal aktif saat browser/tab ditutup atau HP mati
   // Menggunakan sendBeacon agar request tetap terkirim meski halaman sudah unload
