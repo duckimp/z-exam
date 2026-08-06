@@ -16,8 +16,14 @@ class Soal extends Model
         'konten',
         'gambar',
         'kunci_essay',
+        'keyword_esai',
+        'topik_materi',
         'bobot',
         'urutan',
+    ];
+
+    protected $casts = [
+        'keyword_esai' => 'array',
     ];
 
     public function mapel(): BelongsTo

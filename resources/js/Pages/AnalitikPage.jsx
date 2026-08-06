@@ -3,11 +3,13 @@ import { Head, Link, router } from '@inertiajs/react'
 import { 
   ArrowLeft, Download, Award, TrendingUp, TrendingDown, 
   Users, Activity, FileText, X, Check, Filter, ChevronDown, 
-  Trophy, AlertTriangle, GraduationCap
+  Trophy, AlertTriangle, GraduationCap, Printer,
+  Brain, BarChart2, Target, BookOpen, CheckCircle2, XCircle
 } from 'lucide-react'
 import AdminLayout from '@/Layouts/AdminLayout'
 import 'katex/dist/katex.min.css'
 import { InlineMath, BlockMath } from 'react-katex'
+import axios from 'axios'
 
 // Helper to escape unsafe HTML tags
 function escapeUnsafeHtml(htmlStr) {
@@ -55,7 +57,8 @@ export default function AnalitikPage({
   top_3_tertinggi = [], 
   top_3_terendah = [],
   filter_options = { kelas: [], generasi: [] },
-  current_filter = { kelas_id: null, generasi: null, semua: false }
+  current_filter = { kelas_id: null, generasi: null, semua: false },
+  narasi = ''
 }) {
   const [selectedPeserta, setSelectedPeserta] = useState(null)
   const [nilai, setNilai] = useState({})
@@ -69,6 +72,114 @@ export default function AnalitikPage({
     generasi: current_filter.generasi || '',
     semua: current_filter.semua || false
   })
+
+  // Analitik Cerdas State
+  const [activeAnalitikTab, setActiveAnalitikTab] = useState('overview')
+  const [analisisSoal, setAnalisisSoal] = useState([])
+  const [deteksiAnomali, setDeteksiAnomali] = useState([])
+  const [petaRemedial, setPetaRemedial] = useState([])
+  const [analisisSoalLoading, setAnalisisSoalLoading] = useState(false)
+  const [deteksiAnomaliLoading, setDeteksiAnomaliLoading] = useState(false)
+  const [petaRemedialLoading, setPetaRemedialLoading] = useState(false)
+  const [dismissingAnomali, setDismissingAnomali] = useState(null)
+
+  // Load analitik data when tab changes
+  useEffect(() => {
+    if (activeAnalitikTab === 'analisis' && analisisSoal.length === 0) {
+      loadAnalisisSoal()
+    }
+    if (activeAnalitikTab === 'anomali' && deteksiAnomali.length === 0) {
+      loadDeteksiAnomali()
+    }
+    if (activeAnalitikTab === 'remedial' && petaRemedial.length === 0) {
+      loadPetaRemedial()
+    }
+  }, [activeAnalitikTab])
+
+  const loadAnalisisSoal = async () => {
+    setAnalisisSoalLoading(true)
+    try {
+      const res = await axios.get(`/api/laporan/sesi/${sesi.id}/analisis-soal`)
+      setAnalisisSoal(res.data)
+    } catch (error) {
+      console.error('Error loading analisis soal:', error)
+    } finally {
+      setAnalisisSoalLoading(false)
+    }
+  }
+
+  const loadDeteksiAnomali = async () => {
+    setDeteksiAnomaliLoading(true)
+    try {
+      const res = await axios.get(`/api/laporan/sesi/${sesi.id}/deteksi-anomali`)
+      setDeteksiAnomali(res.data)
+    } catch (error) {
+      console.error('Error loading deteksi anomali:', error)
+    } finally {
+      setDeteksiAnomaliLoading(false)
+    }
+  }
+
+  const loadPetaRemedial = async () => {
+    setPetaRemedialLoading(true)
+    try {
+      const res = await axios.get(`/api/laporan/sesi/${sesi.id}/peta-remedial`)
+      setPetaRemedial(res.data)
+    } catch (error) {
+      console.error('Error loading peta remedial:', error)
+    } finally {
+      setPetaRemedialLoading(false)
+    }
+  }
+
+  // Tandai anomali sebagai WAJAR (false positive) — disembunyikan dari dashboard
+  const dismissAnomali = async (anomali) => {
+    if (!window.confirm(
+      `Tandai anomali "${anomali.jenis_anomali}" untuk ${anomali.peserta_nama} sebagai WAJAR?\n\n` +
+      `Anomali ini akan disembunyikan dari dashboard pengawas.`
+    )) return
+
+    const key = `${anomali.peserta_id}:${anomali.tipe}`
+    setDismissingAnomali(key)
+    try {
+      await axios.post(`/api/laporan/anomali/${anomali.peserta_id}/dismiss`, { tipe: anomali.tipe })
+      setDeteksiAnomali(prev => prev.filter(a => !(a.peserta_id === anomali.peserta_id && a.tipe === anomali.tipe)))
+    } catch (error) {
+      console.error('Error dismissing anomaly:', error)
+      alert('Gagal menandai anomali sebagai wajar. Coba lagi.')
+    } finally {
+      setDismissingAnomali(null)
+    }
+  }
+
+  const getKesukaranBadgeColor = (kategori) => {
+    const colors = {
+      'Mudah': 'bg-green-100 text-green-700',
+      'Sedang': 'bg-yellow-100 text-yellow-700',
+      'Sukar': 'bg-red-100 text-red-700',
+    }
+    return colors[kategori] || 'bg-gray-100 text-gray-700'
+  }
+
+  const getDayaPembedaBadgeColor = (kategori) => {
+    const colors = {
+      'Baik Sekali': 'bg-emerald-100 text-emerald-700',
+      'Baik': 'bg-blue-100 text-blue-700',
+      'Cukup': 'bg-orange-100 text-orange-700',
+      'Jelek': 'bg-red-100 text-red-700',
+      'Sangat Jelek (Ambigu)': 'bg-red-200 text-red-900',
+    }
+    return colors[kategori] || 'bg-gray-100 text-gray-700'
+  }
+
+  const getSeverityBadgeColor = (severity) => {
+    const colors = {
+      'high': 'bg-red-100 text-red-700',
+      'medium': 'bg-amber-100 text-amber-700',
+      'low': 'bg-yellow-100 text-yellow-700',
+    }
+    return colors[severity] || 'bg-gray-100 text-gray-700'
+  }
 
   const openKoreksiModal = (p) => {
     setSelectedPeserta(p)
@@ -91,6 +202,26 @@ export default function AnalitikPage({
       ...prev,
       [soalId]: val
     }))
+  }
+
+  // Terapkan semua skor draft otomatis (persentase 0-100) menjadi nilai final
+  // yang proporsional dengan bobot masing-masing soal esai.
+  const useAllDraftScores = () => {
+    const draftNilai = {}
+    essayAnswers.forEach(j => {
+      if (j.skor_esai_draft != null) {
+        const bobot = j.soal?.bobot ?? 0
+        const scaled = Math.round((j.skor_esai_draft / 100) * bobot)
+        draftNilai[j.soal_id] = Math.min(scaled, bobot)
+      }
+    })
+
+    if (Object.keys(draftNilai).length === 0) {
+      alert('Tidak ada skor draft otomatis untuk jawaban esai siswa ini.')
+      return
+    }
+
+    setNilai(prev => ({ ...prev, ...draftNilai }))
   }
 
   const saveKoreksi = () => {
@@ -171,7 +302,7 @@ export default function AnalitikPage({
           <div className="flex items-center gap-3">
             <Link 
               href="/laporan" 
-              className="p-1.5 text-slate-400 hover:text-slate-700 bg-white border border-slate-200 rounded-lg shadow-sm"
+              className="p-1.5 text-slate-400 hover:text-slate-700 bg-white border border-slate-200 rounded-lg shadow-sm no-print"
             >
               <ArrowLeft size={16} />
             </Link>
@@ -181,9 +312,16 @@ export default function AnalitikPage({
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <button 
+              onClick={() => window.print()}
+              className="btn btn-outline py-2.5 font-bold flex items-center gap-1.5 no-print"
+              title="Cetak / simpan laporan sebagai PDF"
+            >
+              <Printer size={14} /> Cetak / PDF
+            </button>
             <a 
               href={`/laporan/sesi/${sesi.id}/excel`} 
-              className="btn btn-outline py-2.5 font-bold flex items-center gap-1.5"
+              className="btn btn-outline py-2.5 font-bold flex items-center gap-1.5 no-print"
               target="_blank"
               rel="noreferrer"
             >
@@ -192,7 +330,7 @@ export default function AnalitikPage({
             {/* Filter Button */}
             <div className="relative">
               <button
-                className={`btn btn-outline py-2.5 font-bold flex items-center gap-1.5 ${hasActiveFilters ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : ''}`}
+                className={`btn btn-outline py-2.5 font-bold flex items-center gap-1.5 no-print ${hasActiveFilters ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : ''}`}
                 onClick={() => setFilterOpen(!filterOpen)}
               >
                 <Filter size={14} /> Filter
@@ -352,6 +490,370 @@ export default function AnalitikPage({
           </div>
 
         </div>
+        {/* Narasi Otomatis - Analitik Cerdas */}
+        {narasi && (
+          <div className="panel bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-2xl p-6 mb-8">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-500 flex items-center justify-center flex-shrink-0">
+                <Brain size={20} className="text-white" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-black text-blue-900 mb-2">📊 Ringkasan Analitik Otomatis</h3>
+                <p className="text-sm text-blue-800 leading-relaxed">{narasi}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Analitik Cerdas Tabs */}
+        <div className="mb-8">
+          <div className="flex gap-2 mb-4 overflow-x-auto pb-2 no-print" role="tablist" aria-label="Analitik Cerdas">
+            <button
+              role="tab"
+              aria-selected={activeAnalitikTab === 'overview'}
+              onClick={() => setActiveAnalitikTab('overview')}
+              className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${
+                activeAnalitikTab === 'overview' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'
+              }`}
+            >
+              <BarChart2 size={14} className="inline mr-1 mb-0.5" />
+              Overview
+            </button>
+            <button
+              role="tab"
+              aria-selected={activeAnalitikTab === 'analisis'}
+              onClick={() => setActiveAnalitikTab('analisis')}
+              className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${
+                activeAnalitikTab === 'analisis' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'
+              }`}
+            >
+              <Target size={14} className="inline mr-1 mb-0.5" />
+              Analisis Butir Soal
+            </button>
+            <button
+              role="tab"
+              aria-selected={activeAnalitikTab === 'anomali'}
+              onClick={() => setActiveAnalitikTab('anomali')}
+              className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${
+                activeAnalitikTab === 'anomali' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'
+              }`}
+            >
+              <AlertTriangle size={14} className="inline mr-1 mb-0.5" />
+              Deteksi Anomali
+              {deteksiAnomali.length > 0 && (
+                <span className="ml-2 px-2 py-0.5 bg-red-500 text-white text-xs rounded-full">{deteksiAnomali.length}</span>
+              )}
+            </button>
+            <button
+              role="tab"
+              aria-selected={activeAnalitikTab === 'remedial'}
+              onClick={() => setActiveAnalitikTab('remedial')}
+              className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${
+                activeAnalitikTab === 'remedial' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'
+              }`}
+            >
+              <BookOpen size={14} className="inline mr-1 mb-0.5" />
+              Peta Remedial
+            </button>
+          </div>
+
+          {/* Loading states */}
+          {activeAnalitikTab === 'analisis' && analisisSoalLoading && (
+            <div className="panel bg-white border border-slate-200 rounded-2xl p-12 text-center">
+              <div className="animate-spin w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full mx-auto mb-4"></div>
+              <p className="text-sm font-bold text-slate-500">Memuat analisis butir soal...</p>
+            </div>
+          )}
+          {activeAnalitikTab === 'anomali' && deteksiAnomaliLoading && (
+            <div className="panel bg-white border border-slate-200 rounded-2xl p-12 text-center">
+              <div className="animate-spin w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full mx-auto mb-4"></div>
+              <p className="text-sm font-bold text-slate-500">Memuat deteksi anomali...</p>
+            </div>
+          )}
+          {activeAnalitikTab === 'remedial' && petaRemedialLoading && (
+            <div className="panel bg-white border border-slate-200 rounded-2xl p-12 text-center">
+              <div className="animate-spin w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full mx-auto mb-4"></div>
+              <p className="text-sm font-bold text-slate-500">Memuat peta remedial...</p>
+            </div>
+          )}
+
+          {/* Overview Tab Content */}
+          {activeAnalitikTab === 'overview' && (
+            <>
+              {/* Distribusi Nilai */}
+              <div className="panel bg-white border border-slate-200 rounded-2xl p-6 mb-6">
+                <h3 className="text-lg font-black text-slate-800 mb-4">Distribusi Nilai Kelas</h3>
+                <div className="grid grid-cols-5 gap-4">
+                  {Object.entries(stats.distribusi).map(([range, count]) => (
+                    <div key={range} className="text-center">
+                      <div className="text-3xl font-black text-indigo-600 mb-1">{count}</div>
+                      <div className="text-xs font-bold text-slate-500">{range}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Quick Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="panel bg-white border border-slate-200 rounded-2xl p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-black text-slate-500 mb-1">Kualitas Soal</h4>
+                      <div className="text-2xl font-black text-indigo-600">
+                        {analisisSoal.filter(s => s.kategori_daya_pembeda === 'Baik Sekali' || s.kategori_daya_pembeda === 'Baik').length}
+                        <span className="text-sm text-slate-400 font-bold ml-1">/ {analisisSoal.length}</span>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-1">Soal berkualitas baik</p>
+                    </div>
+                    <div className="w-12 h-12 rounded-xl bg-indigo-100 flex items-center justify-center">
+                      <CheckCircle2 size={24} className="text-indigo-600" />
+                    </div>
+                  </div>
+                </div>
+                <div className="panel bg-white border border-slate-200 rounded-2xl p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-black text-slate-500 mb-1">Topik Tersulit</h4>
+                      <div className="text-lg font-black text-rose-600">{petaRemedial[0]?.topik || '-'}</div>
+                      <p className="text-xs text-slate-400 mt-1">{petaRemedial[0]?.persentase_salah?.toFixed(1)}% kesalahan</p>
+                    </div>
+                    <div className="w-12 h-12 rounded-xl bg-rose-100 flex items-center justify-center">
+                      <AlertTriangle size={24} className="text-rose-600" />
+                    </div>
+                  </div>
+                </div>
+                <div className="panel bg-white border border-slate-200 rounded-2xl p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-black text-slate-500 mb-1">Perlu Remedial</h4>
+                      <div className="text-2xl font-black text-amber-600">
+                        {petaRemedial.reduce((sum, t) => sum + (t.jumlah_siswa_remedial || 0), 0)}
+                      </div>
+                      <p className="text-xs text-slate-400 mt-1">Siswa memerlukan remedial</p>
+                    </div>
+                    <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center">
+                      <BookOpen size={24} className="text-amber-600" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Analisis Butir Soal Tab Content */}
+          {activeAnalitikTab === 'analisis' && !analisisSoalLoading && (
+            <div className="panel bg-white border border-slate-200 rounded-2xl overflow-hidden">
+              {analisisSoal.length === 0 ? (
+                <div className="p-12 text-center">
+                  <p className="text-slate-500">Belum ada data analisis butir soal untuk sesi ini.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        <th className="p-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">No</th>
+                        <th className="p-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Soal</th>
+                        <th className="p-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Tipe</th>
+                        <th className="p-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">p (Kesukaran)</th>
+                        <th className="p-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">D (Pembeda)</th>
+                        <th className="p-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Kategori Kesukaran</th>
+                        <th className="p-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Kategori Daya Pembeda</th>
+                        <th className="p-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Analisis Pengecoh</th>
+                        <th className="p-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {analisisSoal.map((item, idx) => (
+                        <tr key={item.soal_id} className="hover:bg-slate-50">
+                          <td className="p-4 text-sm font-mono text-slate-600">{idx + 1}</td>
+                          <td className="p-4">
+                            <div className="text-sm font-semibold text-slate-800 max-w-xs truncate" title={item.konten_soal}>
+                              {item.konten_soal}
+                            </div>
+                            <div className="text-xs text-slate-400 mt-0.5 font-mono">ID: {item.soal_id}</div>
+                          </td>
+                          <td className="p-4">
+                            <span className={`inline-flex px-2 py-0.5 rounded text-xs font-bold ${
+                              item.tipe === 'ESAI' ? 'bg-purple-100 text-purple-700' : 
+                              item.tipe === 'MATCHING' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
+                            }`}>
+                              {item.tipe}
+                            </span>
+                          </td>
+                          <td className="p-4 text-center text-sm font-bold font-mono">
+                            {item.tingkat_kesukaran?.toFixed(2) ?? '-'}
+                          </td>
+                          <td className="p-4 text-center text-sm font-bold font-mono">
+                            {item.daya_pembeda?.toFixed(2) ?? '-'}
+                          </td>
+                          <td className="p-4 text-center">
+                            <span className={`inline-flex px-2 py-1 rounded-full text-xs font-bold ${getKesukaranBadgeColor(item.kategori_kesukaran)}`}>
+                              {item.kategori_kesukaran}
+                            </span>
+                          </td>
+                          <td className="p-4 text-center">
+                            <span className={`inline-flex px-2 py-1 rounded-full text-xs font-bold ${getDayaPembedaBadgeColor(item.kategori_daya_pembeda)}`}>
+                              {item.kategori_daya_pembeda}
+                            </span>
+                          </td>
+                          <td className="p-4 text-center">
+                            {item.analisis_pengecoh && item.analisis_pengecoh.length > 0 ? (
+                              <div className="flex flex-wrap justify-center gap-1.5 max-w-xs mx-auto">
+                                {item.analisis_pengecoh.map(p => (
+                                  <span 
+                                    key={p.label}
+                                    title={`Opsi ${p.label}: ${p.pemilih} pemilih (${p.persentase}%)`}
+                                    className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold ${
+                                      p.efektif ? 'bg-slate-100 text-slate-700' : 'bg-red-100 text-red-700 border border-red-200'
+                                    }`}
+                                  >
+                                    {p.label}: {p.persentase}% {!p.efektif && '⚠️'}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-slate-400 font-mono">-</span>
+                            )}
+                          </td>
+                          <td className="p-4 text-center">
+                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold ${
+                              item.status_soal === 'REVISI' ? 'bg-red-100 text-red-700' :
+                              item.status_soal === 'PERBAIKAN' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+                            }`}>
+                              {item.status_soal === 'REVISI' && <XCircle size={10} />}
+                              {item.status_soal !== 'REVISI' && <CheckCircle2 size={10} />}
+                              {item.status_soal}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Deteksi Anomali Tab Content */}
+          {activeAnalitikTab === 'anomali' && !deteksiAnomaliLoading && (
+            <div className="panel bg-white border border-slate-200 rounded-2xl">
+              {deteksiAnomali.length === 0 ? (
+                <div className="p-12 text-center">
+                  <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4">
+                    <CheckCircle2 size={32} className="text-emerald-600" />
+                  </div>
+                  <h3 className="text-lg font-black text-emerald-700 mb-2">Tidak Ada Anomali Terdeteksi</h3>
+                  <p className="text-slate-500">Semua peserta ujian tampak normal tanpa indikasi kecurangan.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        <th className="p-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Jenis Anomali</th>
+                        <th className="p-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Peserta</th>
+                        <th className="p-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Severity</th>
+                        <th className="p-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Detail</th>
+                        <th className="p-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider no-print">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {deteksiAnomali.map((anomali, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50">
+                          <td className="p-4">
+                            <div className="font-semibold text-slate-800">{anomali.jenis_anomali}</div>
+                            <div className="text-xs text-slate-400 mt-0.5">{anomali.tipe}</div>
+                          </td>
+                          <td className="p-4">
+                            <div className="text-sm font-medium text-slate-700">{anomali.peserta_nama}</div>
+                            <div className="text-xs text-slate-400">{anomali.peserta_kelas} • {anomali.peserta_nisn}</div>
+                          </td>
+                          <td className="p-4 text-center">
+                            <span className={`inline-flex px-2 py-1 rounded-full text-xs font-bold ${getSeverityBadgeColor(anomali.severity)}`}>
+                              {anomali.severity.toUpperCase()}
+                            </span>
+                          </td>
+                          <td className="p-4 text-sm text-slate-600 max-w-md">{anomali.detail}</td>
+                          <td className="p-4 text-center no-print">
+                            <button
+                              onClick={() => dismissAnomali(anomali)}
+                              disabled={dismissingAnomali === `${anomali.peserta_id}:${anomali.tipe}`}
+                              className="btn btn-xs btn-outline py-1.5 font-bold flex items-center gap-1.5 text-slate-500 border-slate-200 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                              title="Anggap wajar (false positive) dan sembunyikan dari dashboard"
+                            >
+                              <CheckCircle2 size={12} /> Tandai Wajar
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Peta Remedial Tab Content */}
+          {activeAnalitikTab === 'remedial' && !petaRemedialLoading && (
+            <div className="panel bg-white border border-slate-200 rounded-2xl">
+              {petaRemedial.length === 0 ? (
+                <div className="p-12 text-center">
+                  <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4">
+                    <CheckCircle2 size={32} className="text-emerald-600" />
+                  </div>
+                  <h3 className="text-lg font-black text-emerald-700 mb-2">Tidak Ada Remedial Diperlukan</h3>
+                  <p className="text-slate-500">Semua topik sudah dikuasai dengan baik oleh peserta ujian.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        <th className="p-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">No</th>
+                        <th className="p-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Topik Materi</th>
+                        <th className="p-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">% Kesalahan</th>
+                        <th className="p-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Siswa Remedial</th>
+                        <th className="p-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Prioritas</th>
+                        <th className="p-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Rekomendasi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {petaRemedial.map((item, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50">
+                          <td className="p-4 text-sm font-mono text-slate-600">{idx + 1}</td>
+                          <td className="p-4 font-medium text-slate-800">{item.topik}</td>
+                          <td className="p-4 text-center text-sm font-bold font-mono text-rose-600">
+                            {item.persentase_salah?.toFixed(1)}%
+                          </td>
+                          <td className="p-4 text-center text-sm font-bold text-amber-600">
+                            {item.jumlah_siswa_remedial}
+                          </td>
+                          <td className="p-4 text-center">
+                            <span className={`inline-flex px-2 py-1 rounded-full text-xs font-bold ${
+                              item.prioritas === 'Tinggi' ? 'bg-red-100 text-red-700' :
+                              item.prioritas === 'Sedang' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+                            }`}>
+                              {item.prioritas}
+                            </span>
+                          </td>
+                          <td className="p-4 text-sm text-slate-600">{item.rekomendasi}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+
+
+
+
+        </div>
+
+
 
         {/* Top 3 Tables Row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
@@ -571,14 +1073,14 @@ export default function AnalitikPage({
                           <td className="p-4 pr-6 text-right flex justify-end gap-2">
                             {hasEssays && (
                               <button 
-                                className="btn btn-xs btn-outline py-1.5 font-bold flex items-center gap-1.5 text-indigo-650 border-indigo-200 hover:bg-indigo-50/50 cursor-pointer"
+                                className="btn btn-xs btn-outline py-1.5 font-bold flex items-center gap-1.5 text-indigo-650 border-indigo-200 hover:bg-indigo-50/50 cursor-pointer no-print"
                                 onClick={() => openKoreksiModal(p)}
                               >
                                 <FileText size={12} /> Koreksi Essay
                               </button>
                             )}
                             <button 
-                              className="btn btn-xs btn-outline py-1.5 font-bold flex items-center gap-1.5 text-slate-650 hover:bg-slate-50 cursor-pointer"
+                              className="btn btn-xs btn-outline py-1.5 font-bold flex items-center gap-1.5 text-slate-650 hover:bg-slate-50 cursor-pointer no-print"
                               onClick={() => window.open(`/laporan/peserta/${p.id}/pdf`, '_blank')}
                             >
                               <Download size={12} /> Cetak LJA
@@ -638,6 +1140,26 @@ export default function AnalitikPage({
                          </p>
                       </div>
 
+                       {/* Skor Draft Otomatis */}
+                       {j.skor_esai_draft != null && (
+                          <div className="p-3 bg-indigo-50/60 border border-indigo-100 rounded-lg flex items-center gap-3">
+                             <div className="w-10 h-10 rounded-full bg-indigo-500 flex items-center justify-center flex-shrink-0">
+                                <Brain size={18} className="text-white" />
+                             </div>
+                             <div className="flex-1">
+                                <span className="text-[9px] font-black text-indigo-700 uppercase tracking-wider">Skor Draft Otomatis (Referensi)</span>
+                                <p className="text-sm font-black text-indigo-700 mt-0.5">
+                                   {Math.round(j.skor_esai_draft)}%
+                                   <span className="text-[10px] font-bold text-indigo-400 ml-1.5 normal-case">
+                                      · setara {Math.min(Math.round((j.skor_esai_draft / 100) * (j.soal?.bobot ?? 0)), j.soal?.bobot ?? 0)} / {j.soal?.bobot ?? 0} poin · dari analisis kata kunci
+                                   </span>
+                                 </p>
+
+                             </div>
+                          </div>
+                       )}
+
+
                       {/* Kunci Jawaban Essay */}
                       <div className="p-4 bg-amber-50/40 border border-amber-150 rounded-lg">
                          <span className="text-[9px] font-black text-amber-700 uppercase tracking-wider">Kunci Jawaban Guru / Referensi</span>
@@ -668,7 +1190,15 @@ export default function AnalitikPage({
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 flex-shrink-0">
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 flex-shrink-0 flex-wrap">
+               <button 
+                 className="btn btn-outline py-2.5 px-4 font-bold flex items-center gap-1.5 text-indigo-700 border-indigo-200 hover:bg-indigo-50 cursor-pointer"
+                 onClick={useAllDraftScores}
+                 disabled={saving || essayAnswers.length === 0}
+                 title="Terapkan semua skor draft otomatis (analisis kata kunci) menjadi nilai final untuk setiap soal esai"
+               >
+                 <Brain size={14} /> Gunakan Semua Draft Nilai
+               </button>
                <button 
                  className="btn btn-outline py-2.5 px-6 font-bold cursor-pointer"
                  onClick={closeKoreksiModal}

@@ -46,6 +46,10 @@ class SoalExcelImport implements ToCollection
                 $map['status'] = $idx;
             } elseif (str_contains($valStr, 'butir') || str_contains($valStr, 'bobot') || str_contains($valStr, 'nilai') || str_contains($valStr, 'skor')) {
                 $map['butir'] = $idx;
+            } elseif (str_contains($valStr, 'topik') || str_contains($valStr, 'materi')) {
+                $map['topik'] = $idx;
+            } elseif (str_contains($valStr, 'kata kunci') || str_contains($valStr, 'keyword') || str_contains($valStr, 'kunci esai')) {
+                $map['keyword_esai'] = $idx;
             }
         }
 
@@ -74,6 +78,10 @@ class SoalExcelImport implements ToCollection
                 $map['urutan'] = $idx;
             } elseif ($valStr === 'kunci' || $valStr === 'kunci_jawaban') {
                 $map['kunci'] = $idx;
+            } elseif ($valStr === 'topik' || $valStr === 'topik_materi' || $valStr === 'topik materi' || $valStr === 'materi') {
+                $map['topik_materi'] = $idx;
+            } elseif ($valStr === 'kata kunci' || $valStr === 'kata_kunci' || $valStr === 'keyword_esai' || $valStr === 'keyword esai' || $valStr === 'kunci esai') {
+                $map['keyword_esai'] = $idx;
             } elseif ($valStr === 'opsi_a' || $valStr === 'opsia' || $valStr === 'opsi a' || $valStr === 'a') {
                 $map['opsi_a'] = $idx;
             } elseif ($valStr === 'opsi_b' || $valStr === 'opsib' || $valStr === 'opsi b' || $valStr === 'b') {
@@ -118,6 +126,8 @@ class SoalExcelImport implements ToCollection
             $isiIdx = $cbtHeaderMap['isi'];
             $statusIdx = $cbtHeaderMap['status'] ?? null;
             $butirIdx = $cbtHeaderMap['butir'] ?? null;
+            $topikIdx = $cbtHeaderMap['topik'] ?? null;
+            $keywordEsaiIdx = $cbtHeaderMap['keyword_esai'] ?? null;
 
             for ($i = $cbtHeaderRowIdx + 1; $i < count($rowsArray); $i++) {
                 $row = $rowsArray[$i];
@@ -127,6 +137,12 @@ class SoalExcelImport implements ToCollection
                 $status = trim((string)($row[$statusIdx] ?? '0'));
                 $butir = trim((string)($row[$butirIdx] ?? '1'));
                 $no = trim((string)($row[$noIdx] ?? '0'));
+                $topik = trim((string)($row[$topikIdx] ?? ''));
+                $keywordEsaiRaw = trim((string)($row[$keywordEsaiIdx] ?? ''));
+                $keywordEsaiArr = null;
+                if ($keywordEsaiRaw !== '') {
+                    $keywordEsaiArr = array_values(array_filter(array_map('trim', explode(',', $keywordEsaiRaw))));
+                }
 
                 if (empty($jenis) && empty($isi)) {
                     continue; // Skip baris kosong
@@ -142,6 +158,8 @@ class SoalExcelImport implements ToCollection
                         'konten' => $isi,
                         'bobot'  => (int)$butir ?: 1,
                         'urutan' => (int)$no ?: 0,
+                        'topik_materi' => $topik ?: null,
+                        'keyword_esai' => $keywordEsaiArr,
                         'options' => []
                     ];
                 } elseif (($jenis === 'JAWABAN' || $kode === 'A') && $currentSoal !== null) {
@@ -168,6 +186,7 @@ class SoalExcelImport implements ToCollection
             $bobotIdx = $oldHeaderMap['bobot'] ?? null;
             $urutanIdx = $oldHeaderMap['urutan'] ?? null;
             $kunciIdx = $oldHeaderMap['kunci'] ?? null;
+            $topikMateriIdx = $oldHeaderMap['topik_materi'] ?? null;
 
             if ($soalIdx === null) {
                 $this->errors[] = "Format template tidak dikenali. Pastikan kolom header sesuai.";
@@ -185,6 +204,7 @@ class SoalExcelImport implements ToCollection
                 $bobot = $bobotIdx !== null ? (int)($row[$bobotIdx] ?? 1) : 1;
                 $urutan = $urutanIdx !== null ? (int)($row[$urutanIdx] ?? 0) : 0;
                 $kunci = $kunciIdx !== null ? strtoupper(trim((string)($row[$kunciIdx] ?? ''))) : '';
+                $topikMateri = $topikMateriIdx !== null ? trim((string)($row[$topikMateriIdx] ?? '')) : '';
 
                 try {
                     if ($this->isPreview) {
@@ -214,6 +234,7 @@ class SoalExcelImport implements ToCollection
                             'konten' => $konten,
                             'bobot' => $bobot ?: 1,
                             'urutan' => $urutan ?: 0,
+                            'topik_materi' => $topikMateri ?: null,
                             'kunci_essay' => $tipe === 'ESSAY' ? $kunci : null,
                             'options' => $opts
                         ];
@@ -227,6 +248,7 @@ class SoalExcelImport implements ToCollection
                         'konten'      => $konten,
                         'bobot'       => $bobot ?: 1,
                         'urutan'      => $urutan ?: 0,
+                        'topik_materi' => $topikMateri ?: null,
                         'kunci_essay' => $tipe === 'ESSAY' ? $kunci : null,
                     ]);
 
@@ -291,6 +313,8 @@ class SoalExcelImport implements ToCollection
                     'konten' => $soalData['konten'],
                     'bobot' => $soalData['bobot'] ?: 1,
                     'urutan' => $soalData['urutan'] ?: 0,
+                    'topik_materi' => $soalData['topik_materi'] ?? null,
+                    'keyword_esai' => $soalData['keyword_esai'] ?? null,
                     'kunci_essay' => null,
                     'options' => $opts
                 ];
@@ -304,6 +328,8 @@ class SoalExcelImport implements ToCollection
                 'konten'      => $soalData['konten'],
                 'bobot'       => $soalData['bobot'] ?: 1,
                 'urutan'      => $soalData['urutan'] ?: 0,
+                'topik_materi' => $soalData['topik_materi'] ?? null,
+                'keyword_esai' => $soalData['keyword_esai'] ?? null,
                 'kunci_essay' => null, // di template vertikal CBT, kunci diletakkan di baris opsi
             ]);
 

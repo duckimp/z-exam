@@ -696,3 +696,63 @@ button.mobile-toggle-close {
     to { opacity: 1; }
   }
 }
+
+/* ─── Print / Export PDF (Cetak Laporan) ─── */
+@media print {
+  .sidebar,
+  .topbar,
+  .sidebar-overlay,
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff !important;
+  }
+
+  .admin-shell {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+  }
+
+  .main-area {
+    display: block !important;
+    overflow: visible !important;
+  }
+
+  .content-area {
+    overflow: visible !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+
+  .page-header {
+    margin-bottom: 16px !important;
+  }
+
+  .page-title {
+    color: #0f172a !important;
+  }
+
+  /* Merapikan panel agar tidak terpotong antar halaman */
+  .panel {
+    box-shadow: none !important;
+    border: 1px solid #e2e8f0 !important;
+    break-inside: avoid;
+    border-radius: 6px !important;
+  }
+
+  /* Teks lebih kontras di atas kertas */
+  .text-slate-400,
+  .text-slate-500,
+  .text-slate-600 {
+    color: #475569 !important;
+  }
+
+  a {
+    text-decoration: none !important;
+    color: #0f172a !important;
+  }
+}

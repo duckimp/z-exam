@@ -93,6 +93,8 @@ class BankSoalInertiaController extends Controller
             'bobot'       => 'required|numeric|min:0',
             'urutan'      => 'integer',
             'kunci_essay' => 'nullable|string',
+            'topik_materi' => 'nullable|string|max:255',
+            'keyword_esai' => 'nullable|array',
             'opsi'        => 'nullable|array',
             'matching'    => 'nullable|array',
         ]);
@@ -105,6 +107,8 @@ class BankSoalInertiaController extends Controller
                 'bobot'       => $request->bobot,
                 'urutan'      => $request->urutan ?? 0,
                 'kunci_essay' => $this->escapeHtmlOutsideMath($request->kunci_essay),
+                'topik_materi' => $request->topik_materi,
+                'keyword_esai' => $request->keyword_esai ?? [],
             ]);
 
             // Simpan Opsi (jika PG)
@@ -145,6 +149,8 @@ class BankSoalInertiaController extends Controller
             'bobot'       => 'required|numeric|min:0',
             'urutan'      => 'integer',
             'kunci_essay' => 'nullable|string',
+            'topik_materi' => 'nullable|string|max:255',
+            'keyword_esai' => 'nullable|array',
             'opsi'        => 'nullable|array',
             'matching'    => 'nullable|array',
         ]);
@@ -156,6 +162,8 @@ class BankSoalInertiaController extends Controller
                 'bobot'       => $request->bobot,
                 'urutan'      => $request->urutan ?? 0,
                 'kunci_essay' => $this->escapeHtmlOutsideMath($request->kunci_essay),
+                'topik_materi' => $request->topik_materi,
+                'keyword_esai' => $request->keyword_esai ?? $soal->keyword_esai,
             ]);
 
             // Hapus relasi lama
@@ -283,6 +291,7 @@ class BankSoalInertiaController extends Controller
                     'konten'      => $soalData['konten'],
                     'bobot'       => $soalData['bobot'] ?? 1,
                     'urutan'      => $soalData['urutan'] ?? 0,
+                    'topik_materi' => $soalData['topik_materi'] ?? null,
                     'kunci_essay' => $soalData['kunci_essay'] ?? null,
                 ]);
 

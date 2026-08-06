@@ -23,31 +23,31 @@ class SoalTemplateExport implements FromArray, WithStyles, WithColumnWidths, Wit
     {
         return [
             // Baris 1: Judul
-            ['TEMPLATE IMPORT SOAL', '', '', '', '', '', ''],
+            ['TEMPLATE IMPORT SOAL', '', '', '', '', '', '', '', ''],
             // Baris 2: Keterangan Q
-            ['', 'Q', '=', 'Question (Soal)', '', 'Kolom "Status Jawaban": isi angka 1 untuk jawaban BENAR, 0 untuk salah', ''],
+            ['', 'Q', '=', 'Question (Soal)', '', 'Kolom "Status Jawaban": isi angka 1 untuk jawaban BENAR, 0 untuk salah', '', '', ''],
             // Baris 3: Keterangan A
-            ['', 'A', '=', 'Answer (Pilihan Jawaban)', '', 'Kolom "Butir Soal": khusus untuk soal ESSAY (poin nilai soal)', ''],
+            ['', 'A', '=', 'Answer (Pilihan Jawaban)', '', 'Kolom "Butir Soal": khusus untuk soal ESSAY (poin nilai soal)', '', '', ''],
             // Baris 4: Peringatan
-            ['', '', '', '', '', '⚠ Import tidak mendukung gambar/rumus LaTeX yang menggunakan tanda kutip ganda', ''],
+            ['', '', '', '', '', '⚠ Import tidak mendukung gambar/rumus LaTeX yang menggunakan tanda kutip ganda', 'Kolom "Topik Materi" (opsional) disarankan diisi untuk analisis Peta Remedial', 'Kolom "Kata Kunci Esai" (opsional) pisahkan dengan koma, contoh: fotosintesis, klorofil, cahaya matahari', ''],
             // Baris 5: Kosong (Pemisah)
-            ['', '', '', '', '', '', ''],
+            ['', '', '', '', '', '', '', '', ''],
             // Baris 6: Header Kolom
-            ['No', 'Jenis', 'Kode', 'Isi Soal / Teks Jawaban', 'Status Jawaban', 'Butir Soal', ''],
+            ['No', 'Jenis', 'Kode', 'Isi Soal / Teks Jawaban', 'Status Jawaban', 'Butir Soal', 'Topik Materi', 'Kata Kunci Esai', ''],
             // ── Contoh Soal 1: Pilihan Ganda ──
-            [1, 'SOAL', 'Q', 'Hasil dari $2x + 5x$ adalah...', '', 2, ''],
-            ['', 'JAWABAN', 'A', '$7x$', 1, '', ''],
-            ['', 'JAWABAN', 'A', '$10x$', 0, '', ''],
-            ['', 'JAWABAN', 'A', '$3x$', 0, '', ''],
-            ['', 'JAWABAN', 'A', '$7x^2$', 0, '', ''],
+            [1, 'SOAL', 'Q', 'Hasil dari $2x + 5x$ adalah...', '', 2, 'Operasi Hitung Aljabar', '', ''],
+            ['', 'JAWABAN', 'A', '$7x$', 1, '', '', '', ''],
+            ['', 'JAWABAN', 'A', '$10x$', 0, '', '', '', ''],
+            ['', 'JAWABAN', 'A', '$3x$', 0, '', '', '', ''],
+            ['', 'JAWABAN', 'A', '$7x^2$', 0, '', '', '', ''],
             // Baris kosong antar soal
-            ['', '', '', '', '', '', ''],
+            ['', '', '', '', '', '', '', '', ''],
             // ── Contoh Soal 2: Essay ──
-            [2, 'SOAL', 'Q', 'Jelaskan pengertian variabel dalam aljabar!', '', 10, ''],
+            [2, 'SOAL', 'Q', 'Jelaskan pengertian variabel dalam aljabar!', '', 10, 'Bentuk Aljabar', 'variabel, konstanta, koefisien, operasi aljabar', ''],
             // Baris kosong untuk data baru
-            ['', '', '', '', '', '', ''],
-            ['', '', '', '', '', '', ''],
-            ['', '', '', '', '', '', ''],
+            ['', '', '', '', '', '', '', '', ''],
+            ['', '', '', '', '', '', '', '', ''],
+            ['', '', '', '', '', '', '', '', ''],
         ];
     }
 
@@ -60,14 +60,16 @@ class SoalTemplateExport implements FromArray, WithStyles, WithColumnWidths, Wit
             'D' => 60,   // Isi Soal
             'E' => 18,   // Status Jawaban
             'F' => 14,   // Butir Soal
-            'G' => 5,    // Padding kanan
+            'G' => 30,   // Topik Materi
+            'H' => 40,   // Kata Kunci Esai
+            'I' => 5,    // Padding kanan
         ];
     }
 
     public function styles(Worksheet $sheet): array
     {
         // ── Merge judul ──
-        $sheet->mergeCells('A1:F1');
+        $sheet->mergeCells('A1:I1');
 
         // ── Judul ──
         $sheet->getStyle('A1')->applyFromArray([
@@ -88,7 +90,7 @@ class SoalTemplateExport implements FromArray, WithStyles, WithColumnWidths, Wit
         $sheet->getRowDimension(1)->setRowHeight(32);
 
         // ── Kotak keterangan (baris 2–4) ──
-        $sheet->getStyle('A2:F4')->applyFromArray([
+        $sheet->getStyle('A2:H4')->applyFromArray([
             'fill' => [
                 'fillType'   => Fill::FILL_SOLID,
                 'startColor' => ['argb' => 'FFEFF6FF'], // biru sangat muda
@@ -109,11 +111,16 @@ class SoalTemplateExport implements FromArray, WithStyles, WithColumnWidths, Wit
             'font' => ['italic' => true, 'size' => 9, 'color' => ['argb' => 'FF92400E']],
         ]);
 
+        // Catatan "Topik Materi" (G4) italic
+        $sheet->getStyle('G4')->applyFromArray([
+            'font' => ['italic' => true, 'size' => 9, 'color' => ['argb' => 'FF15803D']],
+        ]);
+
         // ── Baris 5 pemisah kosong ──
         $sheet->getRowDimension(5)->setRowHeight(6);
 
         // ── Header tabel (baris 6) ──
-        $sheet->getStyle('A6:F6')->applyFromArray([
+        $sheet->getStyle('A6:I6')->applyFromArray([
             'font' => [
                 'bold'  => true,
                 'size'  => 10,
@@ -139,7 +146,7 @@ class SoalTemplateExport implements FromArray, WithStyles, WithColumnWidths, Wit
 
         // ── Baris SOAL (baris 7 & 13) ──
         foreach ([7, 13] as $row) {
-            $sheet->getStyle("A{$row}:F{$row}")->applyFromArray([
+            $sheet->getStyle("A{$row}:I{$row}")->applyFromArray([
                 'font' => [
                     'bold'  => true,
                     'size'  => 10,
@@ -161,7 +168,7 @@ class SoalTemplateExport implements FromArray, WithStyles, WithColumnWidths, Wit
 
         // ── Baris JAWABAN (baris 8–11) ──
         foreach (range(8, 11) as $row) {
-            $sheet->getStyle("A{$row}:F{$row}")->applyFromArray([
+            $sheet->getStyle("A{$row}:I{$row}")->applyFromArray([
                 'fill' => [
                     'fillType'   => Fill::FILL_SOLID,
                     'startColor' => ['argb' => 'FFF8FAFC'],
@@ -192,6 +199,24 @@ class SoalTemplateExport implements FromArray, WithStyles, WithColumnWidths, Wit
             'font'      => ['size' => 10],
         ]);
 
+        // ── Kolom "Topik Materi" (G) — hijau muda (opsional) ──
+        $sheet->getStyle('G7:G16')->applyFromArray([
+            'fill' => [
+                'fillType'   => Fill::FILL_SOLID,
+                'startColor' => ['argb' => 'FFDCFCE7'], // hijau sangat muda
+            ],
+            'font' => ['size' => 10],
+        ]);
+
+        // ── Kolom "Kata Kunci Esai" (H) — ungu muda (opsional) ──
+        $sheet->getStyle('H7:H16')->applyFromArray([
+            'fill' => [
+                'fillType'   => Fill::FILL_SOLID,
+                'startColor' => ['argb' => 'FFEDE9FE'], // ungu sangat muda
+            ],
+            'font' => ['size' => 10],
+        ]);
+
         // ── Kolom "No" (A) — center ──
         $sheet->getStyle('A7:A16')->applyFromArray([
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
@@ -205,7 +230,7 @@ class SoalTemplateExport implements FromArray, WithStyles, WithColumnWidths, Wit
         ]);
 
         // ── Baris kosong antar soal — border tipis ──
-        $sheet->getStyle('A12:F12')->applyFromArray([
+        $sheet->getStyle('A12:I12')->applyFromArray([
             'borders' => [
                 'bottom' => [
                     'borderStyle' => Border::BORDER_DASHED,

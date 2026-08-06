@@ -47,14 +47,74 @@ class ReportController extends Controller
         return response()->json($stats);
     }
 
+
+
     /**
-     * Export Detail Jawaban Siswa (PDF)
+     * Get Analisis Butir Soal untuk Sesi tertentu
      */
-    public function exportPdfJawaban(UjianPeserta $peserta)
+    public function getAnalisisSoal($sesiId)
     {
-        $peserta->load(['student', 'sesi.mapel', 'jawaban.soal']);
+        $analitikService = new \App\Services\AnalitikService();
+        $hasil = $analitikService->analisisSoal($sesiId);
         
-        $pdf = Pdf::loadView('pdf.hasil_ujian', compact('peserta'));
-        return $pdf->download("Hasil_Ujian_{$peserta->student->nama}.pdf");
+        return response()->json($hasil);
+    }
+
+    /**
+     * Get Deteksi Anomali
+     */
+    public function getDeteksiAnomali($sesiId)
+    {
+        $analitikService = new \App\Services\AnalitikService();
+        $hasil = $analitikService->deteksiAnomali($sesiId);
+        
+        return response()->json($hasil);
+    }
+
+    /**
+     * Get Peta Remedial
+     */
+    public function getPetaRemedial($sesiId)
+    {
+        $analitikService = new \App\Services\AnalitikService();
+        $hasil = $analitikService->petaRemedial($sesiId);
+        
+        return response()->json($hasil);
+    }
+
+    /**
+     * Get Narasi Otomatis
+     */
+    public function getNarasiOtomatis($sesiId)
+    {
+        $analitikService = new \App\Services\AnalitikService();
+        $narasi = $analitikService->generateNarasiOtomatis($sesiId);
+        
+        return response()->json(['narasi' => $narasi]);
+    }
+
+    /**
+     * Tandai anomali tertentu sebagai WAJAR (dismiss) untuk peserta tertentu.
+     * Anomali yang di-dismiss tidak akan muncul lagi di dashboard pengawas.
+     */
+    public function dismissAnomali(Request $request, $pesertaId)
+    {
+        $request->validate([
+            'tipe' => 'required|string|in:speed_run,identical_pattern,perfect_on_hard',
+        ]);
+
+        $peserta = UjianPeserta::findOrFail($pesertaId);
+        $dismissed = $peserta->anomali_dismissed ?? [];
+
+        if (!in_array($request->tipe, $dismissed, true)) {
+            $dismissed[] = $request->tipe;
+            $peserta->update(['anomali_dismissed' => $dismissed]);
+        }
+
+        return response()->json([
+            'message' => 'Anomali ditandai wajar dan disembunyikan dari dashboard.',
+            'dismissed' => $dismissed,
+        ]);
     }
 }
+

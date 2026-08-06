@@ -29,6 +29,10 @@ class SoalController extends Controller
             'tipe'       => 'required|in:PG,ESSAY,MATCHING',
             'konten'     => 'required|string',
             'bobot'      => 'nullable|numeric',
+            'urutan'     => 'nullable|integer',
+            'topik_materi' => 'nullable|string|max:255',
+            'keyword_esai' => 'nullable|array',
+            'keyword_esai.*' => 'nullable|string',
             'opsi'       => 'nullable|array',
             'opsi.*.konten' => 'required|string',
             'opsi.*.label'  => 'required|string',
@@ -39,7 +43,7 @@ class SoalController extends Controller
         ]);
 
         return DB::transaction(function () use ($request) {
-            $soal = Soal::create($request->only(['mapel_id', 'tipe', 'konten', 'bobot', 'urutan']));
+            $soal = Soal::create($request->only(['mapel_id', 'tipe', 'konten', 'bobot', 'urutan', 'topik_materi']));
 
             if ($request->tipe === 'PG' && $request->has('opsi')) {
                 foreach ($request->opsi as $o) {
@@ -54,7 +58,10 @@ class SoalController extends Controller
             }
 
             if ($request->tipe === 'ESSAY') {
-                $soal->update(['kunci_essay' => $request->kunci_essay]);
+                $soal->update([
+                    'kunci_essay' => $request->kunci_essay,
+                    'keyword_esai' => $request->keyword_esai ?? [],
+                ]);
             }
 
             return response()->json($soal->load(['opsi', 'matchingItems']), 201);
@@ -72,12 +79,20 @@ class SoalController extends Controller
             'tipe'       => 'sometimes|required|in:PG,ESSAY,MATCHING',
             'konten'     => 'sometimes|required|string',
             'bobot'      => 'nullable|numeric',
+            'urutan'     => 'nullable|integer',
+            'topik_materi' => 'nullable|string|max:255',
+            'keyword_esai' => 'nullable|array',
+            'keyword_esai.*' => 'nullable|string',
             'opsi'       => 'nullable|array',
             'matching'   => 'nullable|array',
         ]);
 
         return DB::transaction(function () use ($request, $soal) {
-            $soal->update($request->only(['tipe', 'konten', 'bobot', 'urutan', 'kunci_essay']));
+            $soal->update($request->only(['tipe', 'konten', 'bobot', 'urutan', 'kunci_essay', 'topik_materi']));
+
+            if ($soal->tipe === 'ESSAY' && $request->has('keyword_esai')) {
+                $soal->update(['keyword_esai' => $request->keyword_esai ?? []]);
+            }
 
             if ($request->has('opsi') && $soal->tipe === 'PG') {
                 $soal->opsi()->delete();

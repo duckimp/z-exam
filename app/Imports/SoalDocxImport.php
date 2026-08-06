@@ -88,6 +88,7 @@ class SoalDocxImport
         $isiIdx = $headerMap['isi'];
         $jawabanIdx = $headerMap['status'] ?? null;
         $noIdx = $headerMap['no'] ?? null;
+        $topikIdx = $headerMap['topik'] ?? null;
 
         $currentSoal = null;
 
@@ -109,6 +110,8 @@ class SoalDocxImport
             $noRaw = $this->getCellText($cells[$noIdx] ?? null);
             $no = (int)trim($noRaw);
 
+            $topik = trim($this->getCellText($cells[$topikIdx] ?? null));
+
             if (empty($jenis) && empty($isi)) {
                 continue; // Lewati baris kosong
             }
@@ -123,6 +126,7 @@ class SoalDocxImport
                     'konten' => $isi,
                     'bobot' => 1, // Nilai default bobot
                     'urutan' => $no ?: 0,
+                    'topik_materi' => $topik ?: null,
                     'options' => []
                 ];
             } elseif ($jenis === 'JAWABAN' && $currentSoal !== null) {
@@ -161,6 +165,8 @@ class SoalDocxImport
                 $foundRequired++;
             } elseif ($valStr === 'no' || $valStr === 'nomor' || $valStr === '#') {
                 $map['no'] = $idx;
+            } elseif ($valStr === 'topik' || $valStr === 'topik materi' || $valStr === 'topik_materi' || $valStr === 'materi') {
+                $map['topik'] = $idx;
             }
         }
 
@@ -366,6 +372,7 @@ class SoalDocxImport
                     'konten' => $soalData['konten'],
                     'bobot' => $soalData['bobot'] ?: 1,
                     'urutan' => $soalData['urutan'] ?: 0,
+                    'topik_materi' => $soalData['topik_materi'] ?? null,
                     'kunci_essay' => null,
                     'options' => $opts
                 ];
@@ -379,6 +386,7 @@ class SoalDocxImport
                 'konten'   => $soalData['konten'],
                 'bobot'    => $soalData['bobot'] ?: 1,
                 'urutan'   => $soalData['urutan'] ?: 0,
+                'topik_materi' => $soalData['topik_materi'] ?? null,
             ]);
 
             if ($tipe === 'PG') {

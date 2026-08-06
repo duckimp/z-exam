@@ -169,12 +169,26 @@ class ExamController extends Controller
             $isCorrect = ($opsiBenar && $opsiBenar->label === $request->jawaban);
         }
 
+        // Hitung draft nilai otomatis untuk soal essay (berdasarkan kata kunci)
+        $skorEsaiDraft = null;
+        if ($soal->tipe === 'ESSAY' && !empty($request->jawaban)) {
+            $grader = new \App\Services\EsaiGraderService();
+            $keywords = collect($soal->keyword_esai ?? [])
+                ->map(fn($k) => is_array($k) ? $k : ['keyword' => $k, 'bobot' => 1])
+                ->values()
+                ->all();
+            $draft = $grader->hitungDraftNilai($request->jawaban, $soal->kunci_essay ?? '', $keywords);
+            $skorEsaiDraft = $draft['score'];
+        }
+
         $jawaban = JawabanPeserta::updateOrCreate(
             ['ujian_peserta_id' => $ujian->id, 'soal_id' => $soal->id],
             [
                 'jawaban'    => $request->jawaban,
                 'is_correct' => $isCorrect,
-                'score'      => $isCorrect ? $soal->bobot : 0
+                'score'      => $isCorrect ? $soal->bobot : 0,
+                'skor_esai_draft' => $skorEsaiDraft,
+                'answered_at' => now(),
             ]
         );
 

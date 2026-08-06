@@ -20,10 +20,12 @@ class UjianPeserta extends Model
         'ip_address',
         'user_agent',
         'soal_order',
+        'anomali_dismissed',
     ];
 
     protected $casts = [
         'soal_order' => 'array',
+        'anomali_dismissed' => 'array',
     ];
 
     public function sesi(): BelongsTo

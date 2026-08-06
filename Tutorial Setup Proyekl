@@ -1,0 +1,60 @@
+## How to Use on New Laptop:
+
+### Option 1: Full Copy (includes vendor/ and node_modules/)
+
+# On old laptop
+tar -czf z-exam-portable.tar.gz z-exam/
+
+# Copy to new laptop
+scp z-exam-portable.tar.gz user@new-laptop:~/
+
+# On new laptop
+tar -xzf z-exam-portable.tar.gz
+cd z-exam
+./start-portable.sh
+
+
+Option 2: Lightweight Copy (excludes heavy folders)
+
+# On old laptop
+tar -czf z-exam-light.tar.gz z-exam/ \
+  --exclude=vendor \
+  --exclude=node_modules \
+  --exclude=public/build \
+  --exclude=bootstrap/cache \
+  --exclude=postgresql-portable/data \
+  --exclude=.git
+
+# On new laptop
+tar -xzf z-exam-light.tar.gz
+cd z-exam
+./setup-portable.sh  # Installs dependencies and builds assets
+./start-portable.sh
+
+
+On Source (Linux/macOS) - Create Lightweight Archive:
+
+# Exclude ALL platform-specific binaries
+tar -czf z-exam-light.tar.gz z-exam/ \
+  --exclude=vendor \
+  --exclude=node_modules \
+  --exclude=public/build \
+  --exclude=bootstrap/cache \
+  --exclude=postgresql-portable/data \
+  --exclude=php-portable \
+  --exclude=nodejs-portable \
+  --exclude=.git
+
+On Target (windows) full rebuild
+REM 1. Extract
+tar -xzf z-exam-light.tar.gz
+cd z-exam
+
+REM 2. Run Windows setup (installs PHP, PostgreSQL, Node.js, RoadRunner)
+REM    This also runs: composer install, npm ci, npm run build, migrations
+setup-portable.bat
+
+REM 3. Start
+start-portable.bat
+
+

@@ -60,6 +60,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('laporan/sesi/{sesi}/excel', [ReportController::class, 'exportExcel']);
     Route::get('laporan/sesi/{sesi}/stats', [ReportController::class, 'getStats']);
     Route::get('laporan/peserta/{peserta}/pdf', [ReportController::class, 'exportPdfJawaban']);
+    
+    // ─ Analitik Cerdas ─
+    Route::get('laporan/sesi/{sesi}/analisis-soal', [ReportController::class, 'getAnalisisSoal']);
+    Route::get('laporan/sesi/{sesi}/deteksi-anomali', [ReportController::class, 'getDeteksiAnomali']);
+    Route::get('laporan/sesi/{sesi}/peta-remedial', [ReportController::class, 'getPetaRemedial']);
+    Route::get('laporan/sesi/{sesi}/narasi', [ReportController::class, 'getNarasiOtomatis']);
+    Route::post('laporan/anomali/{peserta}/dismiss', [ReportController::class, 'dismissAnomali']);
 
     // ─ Fase 8: Sistem & Backup ─
     Route::get('settings', [SystemController::class, 'getSettings']);

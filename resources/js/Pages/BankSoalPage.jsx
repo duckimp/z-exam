@@ -79,6 +79,8 @@ export default function BankSoalPage({ mapel, selectedMapel, soal, filters }) {
     bobot: 1,
     urutan: 0,
     kunci_essay: '',
+    topik_materi: '',
+    keyword_esai: [],
     opsi: [
       { label: 'A', konten: '', is_correct: false },
       { label: 'B', konten: '', is_correct: false },
@@ -154,6 +156,8 @@ export default function BankSoalPage({ mapel, selectedMapel, soal, filters }) {
       bobot: 1,
       urutan: soal.length,
       kunci_essay: '',
+      topik_materi: '',
+      keyword_esai: [],
       opsi: [
         { label: 'A', konten: '', is_correct: false },
         { label: 'B', konten: '', is_correct: false },
@@ -195,6 +199,8 @@ export default function BankSoalPage({ mapel, selectedMapel, soal, filters }) {
       bobot: s.bobot,
       urutan: s.urutan ?? 0,
       kunci_essay: s.kunci_essay || '',
+      topik_materi: s.topik_materi || '',
+      keyword_esai: s.keyword_esai || [],
       opsi: mappedOpsi,
       matching: mappedMatching
     })
@@ -624,6 +630,18 @@ export default function BankSoalPage({ mapel, selectedMapel, soal, filters }) {
                 </div>
 
                 <div className="flex flex-col gap-1">
+                  <label className="text-xs font-bold text-slate-500">Topik Materi <span className="text-slate-300">(opsional)</span></label>
+                  <input 
+                    type="text" 
+                    className="input text-sm font-semibold" 
+                    placeholder="Contoh: Operasi Hitung Bilangan Bulat, Teks Deskripsi, HTML & CSS..."
+                    value={formSoal.data.topik_materi} 
+                    onChange={e => formSoal.setData('topik_materi', e.target.value)} 
+                  />
+                  <p className="text-[10px] text-slate-400">Topik ini digunakan untuk Peta Remedial & Analitik Cerdas pada menu Laporan.</p>
+                </div>
+
+                <div className="flex flex-col gap-1">
                   <label className="text-xs font-bold text-slate-500 flex justify-between items-center">
                     <span>Konten / Isi Soal</span>
                     <span className="text-[10px] text-indigo-600 font-mono">Format Matematika: $x^2$ (inline) atau $$x^2$$ (blok)</span>
@@ -730,14 +748,30 @@ export default function BankSoalPage({ mapel, selectedMapel, soal, filters }) {
 
                 {/* Essay Editor */}
                 {formSoal.data.tipe === 'ESSAY' && (
-                  <div className="flex flex-col gap-1 border-t border-slate-100 pt-5">
-                    <label className="text-xs font-bold text-slate-500">Kunci Jawaban / Rubrik Penilaian (Opsional)</label>
-                    <textarea 
-                      className="input min-h-[110px] text-sm leading-relaxed p-4" 
-                      placeholder="Masukkan kunci jawaban deskripsi..."
-                      value={formSoal.data.kunci_essay} 
-                      onChange={e => formSoal.setData('kunci_essay', e.target.value)} 
-                    />
+                  <div className="flex flex-col gap-4 border-t border-slate-100 pt-5">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-bold text-slate-500">Kunci Jawaban / Rubrik Penilaian (Opsional)</label>
+                      <textarea 
+                        className="input min-h-[110px] text-sm leading-relaxed p-4" 
+                        placeholder="Masukkan kunci jawaban deskripsi..."
+                        value={formSoal.data.kunci_essay} 
+                        onChange={e => formSoal.setData('kunci_essay', e.target.value)} 
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-bold text-slate-500">Kata Kunci untuk Penilaian Otomatis (Opsional)</label>
+                      <input 
+                        type="text" 
+                        className="input text-sm font-semibold" 
+                        placeholder="Pisahkan dengan koma, contoh: fotosintesis, klorofil, cahaya matahari"
+                        defaultValue={(formSoal.data.keyword_esai || []).join(', ')}
+                        onChange={e => {
+                          const keywords = e.target.value.split(',').map(k => k.trim()).filter(k => k.length > 0)
+                          formSoal.setData('keyword_esai', keywords)
+                        }} 
+                      />
+                      <p className="text-[10px] text-slate-400">Skor draft essay dihitung berdasarkan kemunculan kata kunci pada jawaban siswa.</p>
+                    </div>
                   </div>
                 )}
 
@@ -828,7 +862,10 @@ export default function BankSoalPage({ mapel, selectedMapel, soal, filters }) {
                      <FileSpreadsheet size={16} className="mr-2 text-emerald-600" /> Unduh Template Excel Soal
                   </a>
                   <p className="text-[10px] text-slate-400 mt-1">
-                    * Untuk Word (.docx), buat tabel dengan susunan kolom yang sama: <strong>No, Jenis, Isi, Jawaban</strong>.
+                    * Untuk Word (.docx), buat tabel dengan susunan kolom yang sama: <strong>No, Jenis, Isi, Jawaban, Topik Materi</strong>.
+                  </p>
+                  <p className="text-[10px] text-emerald-600 font-semibold mt-1">
+                    💡 Kolom Topik Materi opsional tapi disarankan diisi untuk analisis Peta Remedial.
                   </p>
                 </div>
 
@@ -882,8 +919,15 @@ export default function BankSoalPage({ mapel, selectedMapel, soal, filters }) {
                         <span className="text-xs font-black text-indigo-700 bg-indigo-50 border border-indigo-200 px-3 py-1 rounded-full uppercase">
                           Soal #{idx + 1} ({q.tipe})
                         </span>
-                        <span className="text-xs text-slate-500 font-bold">
-                          Bobot default: <span className="text-indigo-600 font-black">{q.bobot}</span> poin
+                        <span className="flex items-center gap-2">
+                          {q.topik_materi ? (
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                              📘 {q.topik_materi}
+                            </span>
+                          ) : null}
+                          <span className="text-xs text-slate-500 font-bold">
+                            Bobot default: <span className="text-indigo-600 font-black">{q.bobot}</span> poin
+                          </span>
                         </span>
                       </div>
                       

@@ -23,10 +23,10 @@ const NAV_ITEMS = [
       { to: '/ujian/sesi', icon: ClipboardList,    label: 'Sesi Ujian',     roles: ['super_admin', 'pengawas'] },
     ],
   },
-  {
+    {
     section: 'Analitik',
     items: [
-      { to: '/laporan',   icon: BarChart2,        label: 'Laporan',        roles: ['super_admin', 'guru'] },
+      { to: '/laporan',   icon: BarChart2,        label: 'Laporan',        roles: ['super_admin', 'guru', 'pengawas'] },
     ],
   },
   {

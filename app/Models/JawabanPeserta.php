@@ -15,6 +15,12 @@ class JawabanPeserta extends Model
         'jawaban',
         'is_correct',
         'score',
+        'skor_esai_draft',
+        'answered_at',
+    ];
+
+    protected $casts = [
+        'answered_at' => 'datetime',
     ];
 
     public function ujian(): BelongsTo

@@ -7,6 +7,7 @@ use App\Models\UjianPeserta;
 use App\Models\Kelas;
 use App\Models\Student;
 use App\Exports\RekapNilaiExport;
+use App\Services\AnalitikService;
 use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
 use Inertia\Inertia;
@@ -14,6 +15,13 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class ReportInertiaController extends Controller
 {
+    protected $analitikService;
+
+    public function __construct(AnalitikService $analitikService)
+    {
+        $this->analitikService = $analitikService;
+    }
+
     /**
      * Tampilkan Halaman Rekap Laporan
      */
@@ -34,7 +42,7 @@ class ReportInertiaController extends Controller
      */
     public function analitik(Request $request, $id)
     {
-        $sesi = SesiUjian::with('mapel')->findOrFail($id);
+        $sesi = SesiUjian::with(['mapel', 'kelas'])->findOrFail($id);
         
         // Get filter parameters
         $kelasId = $request->query('kelas_id');
@@ -105,42 +113,17 @@ class ReportInertiaController extends Controller
             ->values()
             ->toArray();
         
-        // Get filter options - classes that have participants in this session
-        $kelasOptions = Kelas::whereHas('students.ujianPeserta', function ($q) use ($id) {
-                $q->where('sesi_id', $id);
-            })
-            ->orderBy('tingkat')
-            ->orderBy('nama_kelas')
-            ->get(['id', 'nama_kelas', 'tingkat'])
-            ->map(function ($k) {
-                return [
-                    'id' => $k->id,
-                    'nama_kelas' => $k->nama_kelas,
-                    'tingkat' => $k->tingkat,
-                    'label' => "{$k->nama_kelas} (Kelas {$k->tingkat})"
-                ];
-            })
-            ->toArray();
+        // Get available filters
+        $kelasOptions = Kelas::orderBy('nama_kelas')->get();
+        $generasiOptions = Kelas::distinct('tingkat')->pluck('tingkat')->sort()->values();
         
-        // Get unique generasi/tingkat
-        $generasiOptions = Kelas::whereHas('students.ujianPeserta', function ($q) use ($id) {
-                $q->where('sesi_id', $id);
-            })
-            ->distinct('tingkat')
-            ->orderBy('tingkat')
-            ->pluck('tingkat')
-            ->map(function ($t) {
-                return [
-                    'value' => $t,
-                    'label' => "Kelas {$t} (Semua Paralel)"
-                ];
-            })
-            ->toArray();
-
+        // Ambil data analitik cerdas menggunakan service
+        $narasi = $this->analitikService->generateNarasiOtomatis($id);
+        
         return Inertia::render('AnalitikPage', [
             'sesi' => $sesi,
+            'peserta' => $peserta->values(),
             'stats' => $stats,
-            'peserta' => $peserta,
             'top_3_tertinggi' => $top3Tertinggi,
             'top_3_terendah' => $top3Terendah,
             'filter_options' => [
@@ -152,6 +135,7 @@ class ReportInertiaController extends Controller
                 'generasi' => $generasi,
                 'semua' => $showAll,
             ],
+            'narasi' => $narasi,
         ]);
     }
 
